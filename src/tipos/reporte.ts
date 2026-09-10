@@ -5,7 +5,7 @@ export interface Coordenadas {
 
 export interface Foto {
   id: string;
-  url: string; // o ruta local mientras no se subió
+  url: string;
   momento: "problema" | "arreglo";
 }
 
@@ -22,7 +22,7 @@ export interface Reporte {
   tipoId: string;
   descripcion: string | null;
   audioUrl: string | null;
-  fotos: Foto[]; // Al menos una es obligatoria
+  fotos: Foto[];
   coordenadas: Coordenadas;
   direccion: string;
   zonaId: string;
@@ -32,5 +32,5 @@ export interface Reporte {
   duplicadoDe: string | null;
   adhesiones: number;
   creadoEn: string;
-  sincronizado: boolean; // false mientras está en la cola local
+  sincronizado: boolean;
 }
