@@ -1,18 +1,25 @@
 {
   "expo": {
-    "name": "reporte-ciudadano",
+    "name": "Reporte Ciudadano",
     "slug": "reporte-ciudadano",
     "version": "1.0.0",
     "orientation": "portrait",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "icon": "./assets/images/icon.png",
     "scheme": "reporteciudadano",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.uner.reporteciudadano",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.uner.reporteciudadano",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
