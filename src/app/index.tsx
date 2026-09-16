@@ -1,5 +1,6 @@
 import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedIcon } from '@/components/animated-icon';
@@ -42,6 +43,13 @@ export default function HomeScreen() {
         <ThemedText type="code" style={styles.code}>
           get started
         </ThemedText>
+
+        {/* Temporal de Juanchi. TODO(Alan): quitar al integrar navegación final. */}
+        <Link href="/reportar" asChild>
+          <Pressable style={styles.reportarBtn}>
+            <Text style={styles.reportarTxt}>Crear reporte</Text>
+          </Pressable>
+        </Link>
 
         <ThemedView type="backgroundElement" style={styles.stepContainer}>
           <HintRow
@@ -95,4 +103,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,
   },
+  reportarBtn: {
+    backgroundColor: '#208AEF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  reportarTxt: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });

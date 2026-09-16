@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# notas personales TPI (no subir: reporteJuanchi.md, resumen.md, PDFs de trabajo)
+datos tpi 2026/
+
 # typescript
 *.tsbuildinfo
 

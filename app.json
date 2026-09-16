@@ -32,6 +32,25 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir acceso a la cámara para fotografiar el problema reportado.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permitir acceso a las fotos para adjuntar imágenes del problema."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Permitir acceso al micrófono para grabar notas de voz del reporte."
+        }
       ]
     ],
     "experiments": {
