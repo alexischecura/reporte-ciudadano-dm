@@ -4,7 +4,7 @@ Guía para principiantes en programación móvil. Te lleva desde cero hasta prob
 el módulo del Vecino (crear reporte + cámara + galería + nota de voz).
 
 > Rama de trabajo: `juanchicode`. Todo lo de abajo se corre desde la carpeta
-> del proyecto: `E:\www\antigravity\reporte_ciudadano`.
+> del proyecto: `F:\Documentos\www\Proyectos_Github\reporte-ciudadano-dm`.
 
 ---
 
@@ -157,7 +157,7 @@ adjuntar una foto previa.
 ## 8. Comandos resumen (copiar/pegar)
 
 ```powershell
-cd E:\www\antigravity\reporte_ciudadano
+cd F:\Documentos\www\Proyectos_Github\reporte-ciudadano-dm
 npm install
 npx tsc --noEmit
 npm run lint
