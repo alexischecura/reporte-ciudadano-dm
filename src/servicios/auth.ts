@@ -17,9 +17,14 @@ export interface DatosRegistro {
   password: string;
 }
 
+export interface SesionUsuario {
+  usuario: Usuario;
+  token: string;
+}
+
 export async function login(
   credenciales: CredencialesLogin,
-): Promise<RespuestaApi<Usuario>> {
+): Promise<RespuestaApi<SesionUsuario>> {
   await esperar(500);
 
   const usuario = MOCK_USUARIOS.find(
@@ -35,7 +40,9 @@ export async function login(
     };
   }
 
-  return { datos: usuario };
+  const token = `token-${usuario.id}-${Date.now()}`;
+
+  return { datos: { usuario, token } };
 }
 
 export async function registrar(
