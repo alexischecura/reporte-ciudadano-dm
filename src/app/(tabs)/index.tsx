@@ -8,6 +8,7 @@ import { HintRow } from "@/components/hint-row";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { WebBadge } from "@/components/web-badge";
+import { useSesion } from "@/contexts/sesion-context";
 import { Link } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -31,6 +32,7 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  const { usuario } = useSesion();
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -43,6 +45,9 @@ export default function HomeScreen() {
 
         <ThemedText type="code" style={styles.code}>
           get started
+        </ThemedText>
+        <ThemedText>
+          {usuario ? `Logueado: ${usuario.nombre}` : "Sin sesión"}
         </ThemedText>
 
         <ThemedView type="backgroundElement" style={styles.stepContainer}>
