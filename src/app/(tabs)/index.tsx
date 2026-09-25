@@ -33,6 +33,8 @@ function getDevMenuHint() {
 
 export default function HomeScreen() {
   const { usuario } = useSesion();
+  const { logout } = useSesion();
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -49,6 +51,13 @@ export default function HomeScreen() {
         <ThemedText>
           {usuario ? `Logueado: ${usuario.nombre}` : "Sin sesión"}
         </ThemedText>
+        <ThemedText
+          onPress={logout}
+          style={{ textDecorationLine: "underline" }}
+        >
+          Cerrar sesión
+        </ThemedText>
+        <Link href="/operador">Ir a operador (prueba)</Link>
 
         <ThemedView type="backgroundElement" style={styles.stepContainer}>
           <HintRow
