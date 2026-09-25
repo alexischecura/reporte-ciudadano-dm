@@ -1,11 +1,19 @@
-import { CredencialesLogin, login as loginServicio } from "@/servicios/auth";
+import {
+  CredencialesLogin,
+  login as loginServicio,
+  validarToken,
+} from "@/servicios/auth";
+import {
+  autenticarConBiometria,
+  haySoporteBiometrico,
+} from "@/servicios/biometria";
 import { borrarToken, guardarToken, obtenerToken } from "@/servicios/sesion";
 import {
-    ReactNode,
-    createContext,
-    useContext,
-    useEffect,
-    useState,
+  ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 
 import { Usuario } from "@/tipos";
@@ -29,6 +37,31 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function restaurarSesion() {
       const token = await obtenerToken();
+
+      if (!token) {
+        setCargando(false);
+        return;
+      }
+
+      const haySoporte = await haySoporteBiometrico();
+
+      if (haySoporte) {
+        const resultadoBiometria = await autenticarConBiometria();
+        if (!resultadoBiometria.exito) {
+          setCargando(false);
+          return;
+        }
+      }
+
+      const resultado = await validarToken(token);
+
+      if (esError(resultado)) {
+        await borrarToken();
+        setCargando(false);
+        return;
+      }
+
+      setUsuario(resultado.datos);
       setCargando(false);
     }
     restaurarSesion();
