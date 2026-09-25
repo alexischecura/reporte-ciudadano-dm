@@ -78,3 +78,25 @@ export async function registrar(
 
   return { datos: nuevoUsuario };
 }
+
+export async function validarToken(
+  token: string,
+): Promise<RespuestaApi<Usuario>> {
+  await esperar(300);
+
+  const partes = token.split("-");
+  const usuarioId = partes.length >= 3 ? `${partes[1]}-${partes[2]}` : null;
+
+  const usuario = MOCK_USUARIOS.find((u) => u.id === usuarioId);
+
+  if (!usuario) {
+    return {
+      error: {
+        codigo: "TOKEN_INVALIDO",
+        mensaje: "La sesión guardada ya no es válida.",
+      },
+    };
+  }
+
+  return { datos: usuario };
+}
