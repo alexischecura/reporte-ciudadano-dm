@@ -1,17 +1,26 @@
+<<<<<<< HEAD:src/app/index.tsx
 import * as Device from 'expo-device';
 import { Link } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+=======
+import * as Device from "expo-device";
+>>>>>>> main:src/app/(tabs)/index.tsx
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Platform, StyleSheet } from "react-native";
+
+import { AnimatedIcon } from "@/components/animated-icon";
+import { HintRow } from "@/components/hint-row";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { WebBadge } from "@/components/web-badge";
+import { useSesion } from "@/contexts/sesion-context";
+import { Link } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function getDevMenuHint() {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return <ThemedText type="small">use browser devtools</ThemedText>;
   }
   if (Device.isDevice) {
@@ -21,7 +30,7 @@ function getDevMenuHint() {
       </ThemedText>
     );
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  const shortcut = Platform.OS === "android" ? "cmd+m (or ctrl+m)" : "cmd+d";
   return (
     <ThemedText type="small">
       press <ThemedText type="code">{shortcut}</ThemedText>
@@ -30,6 +39,9 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  const { usuario } = useSesion();
+  const { logout } = useSesion();
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -43,8 +55,17 @@ export default function HomeScreen() {
         <ThemedText type="code" style={styles.code}>
           get started
         </ThemedText>
+        <ThemedText>
+          {usuario ? `Logueado: ${usuario.nombre}` : "Sin sesión"}
+        </ThemedText>
+        <ThemedText
+          onPress={logout}
+          style={{ textDecorationLine: "underline" }}
+        >
+          Cerrar sesión
+        </ThemedText>
+        <Link href="/operador">Ir a operador (prueba)</Link>
 
-        {/* Temporal de Juanchi. TODO(Alan): quitar al integrar navegación final. */}
         <Link href="/reportar" asChild>
           <Pressable style={styles.reportarBtn}>
             <Text style={styles.reportarTxt}>Crear reporte</Text>
@@ -63,7 +84,10 @@ export default function HomeScreen() {
           />
         </ThemedView>
 
-        {Platform.OS === 'web' && <WebBadge />}
+        {Platform.OS === "web" && <WebBadge />}
+        <Link href="/login" style={{ marginTop: 16 }}>
+          <ThemedText>Ir a Login (temporal)</ThemedText>
+        </Link>
       </SafeAreaView>
     </ThemedView>
   );
@@ -72,33 +96,33 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    justifyContent: "center",
+    flexDirection: "row",
   },
   safeArea: {
     flex: 1,
     paddingHorizontal: Spacing.four,
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
   },
   heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1,
     paddingHorizontal: Spacing.four,
     gap: Spacing.four,
   },
   title: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   code: {
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   stepContainer: {
     gap: Spacing.three,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,

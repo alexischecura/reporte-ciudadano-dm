@@ -51,7 +51,8 @@
         {
           "microphonePermission": "Permitir acceso al micrófono para grabar notas de voz del reporte."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
