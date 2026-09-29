@@ -9,6 +9,9 @@ import {
 } from "expo-audio";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { useTheme } from "@/hooks/use-theme";
 import { eliminarArchivo, guardarAudio } from "../../servicios/almacenamiento";
 import { solicitarPermiso } from "../../utils/permisos";
 
@@ -26,16 +29,15 @@ function formatoTiempo(ms: number): string {
 /**
  * Nota de voz (Juanchi) — expo-audio.
  * Graba en .m4a alta calidad, reproduce/pausa, elimina.
- * El archivo se persiste a document/ al parar de grabar.
  */
 export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
+  const colors = useTheme();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recState = useAudioRecorderState(recorder);
   const player = useAudioPlayer(audioUri);
   const playStatus = useAudioPlayerStatus(player);
   const [procesando, setProcesando] = useState(false);
 
-  // Cuando termina de reproducir, vuelve al inicio.
   if (playStatus.didJustFinish) {
     player.seekTo(0);
   }
@@ -76,7 +78,6 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       const tmp = recorder.uri;
       if (tmp) {
-        // Si había una nota anterior, se reemplaza.
         if (audioUri) eliminarArchivo(audioUri);
         const persistente = await guardarAudio(tmp, directorioBorrador);
         onCambiar(persistente);
@@ -112,15 +113,20 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
 
   return (
     <View style={styles.cont}>
-      <Text style={styles.titulo}>Nota de voz (opcional)</Text>
+      <ThemedText style={styles.titulo}>Nota de voz (opcional)</ThemedText>
       {!audioUri && !grabando && (
-        <Pressable style={styles.boton} onPress={() => void empezar()} disabled={procesando}>
+        <Pressable
+          style={[styles.boton, { backgroundColor: colors.primary }]}
+          onPress={() => void empezar()}
+          disabled={procesando}>
           <Text style={styles.botonTxt}>Grabar nota</Text>
         </Pressable>
       )}
       {grabando && (
         <View style={styles.fila}>
-          <Text style={styles.crono}>● {formatoTiempo(recState.durationMillis)}</Text>
+          <ThemedText style={styles.crono}>
+            ● {formatoTiempo(recState.durationMillis)}
+          </ThemedText>
           <Pressable style={[styles.boton, styles.botonStop]} onPress={() => void parar()}>
             <Text style={styles.botonTxt}>Parar</Text>
           </Pressable>
@@ -128,12 +134,17 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
       )}
       {audioUri && !grabando && (
         <View style={styles.fila}>
-          <Pressable style={[styles.boton, styles.botonSec]} onPress={() => void alternarReproduccion()}>
-            <Text style={styles.botonSecTxt}>{playStatus.playing ? "Pausar" : "Escuchar"}</Text>
+          <Pressable
+            style={[styles.boton, styles.botonSec, { borderColor: colors.primary }]}
+            onPress={() => void alternarReproduccion()}>
+            <ThemedText style={styles.botonSecTxt} themeColor="primary">
+              {playStatus.playing ? "Pausar" : "Escuchar"}
+            </ThemedText>
           </Pressable>
-          <Text style={styles.tiempo}>
-            {formatoTiempo(playStatus.currentTime * 1000)} / {formatoTiempo(playStatus.duration * 1000)}
-          </Text>
+          <ThemedText themeColor="textSecondary" style={styles.tiempo}>
+            {formatoTiempo(playStatus.currentTime * 1000)} /{" "}
+            {formatoTiempo(playStatus.duration * 1000)}
+          </ThemedText>
           <Pressable onPress={eliminar}>
             <Text style={styles.eliminar}>Eliminar</Text>
           </Pressable>
@@ -148,7 +159,6 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 18, fontWeight: "700" },
   fila: { flexDirection: "row", alignItems: "center", gap: 12 },
   boton: {
-    backgroundColor: "#208AEF",
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 22,
@@ -156,9 +166,9 @@ const styles = StyleSheet.create({
   },
   botonTxt: { color: "#fff", fontSize: 17, fontWeight: "700" },
   botonStop: { backgroundColor: "#C1440E" },
-  botonSec: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: "#208AEF", flex: 1 },
-  botonSecTxt: { color: "#208AEF", fontSize: 17, fontWeight: "700" },
+  botonSec: { backgroundColor: "transparent", borderWidth: 1.5, flex: 1 },
+  botonSecTxt: { fontSize: 17, fontWeight: "700" },
   crono: { fontSize: 17, fontWeight: "700", flex: 1 },
-  tiempo: { fontSize: 14, opacity: 0.7 },
+  tiempo: { fontSize: 14 },
   eliminar: { color: "#C1440E", fontSize: 15, fontWeight: "700" },
 });

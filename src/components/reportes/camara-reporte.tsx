@@ -1,20 +1,24 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { useTheme } from "@/hooks/use-theme";
 import { solicitarPermiso } from "../../utils/permisos";
 
 interface Props {
   visible: boolean;
   onCerrar: () => void;
-  /** URI temporal (cache) recién capturada. El padre la persiste con guardarFoto(). */
   onFoto: (uriTemporal: string) => void;
 }
 
 /**
  * Cámara del reporte (Juanchi) — expo-camera CameraView, lente trasera.
- * Manejo amigable de permisos: Reintentar vs Abrir ajustes.
+ * Fondo negro fijo a propósito: las UI de cámara a pantalla completa son
+ * siempre oscuras (igual que la cámara nativa del sistema), no dependen
+ * del modo claro/oscuro de la app.
  */
 export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
+  const colors = useTheme();
   const [permiso, pedirPermiso] = useCameraPermissions();
   const [lista, setLista] = useState(false);
   const [capturando, setCapturando] = useState(false);
@@ -71,7 +75,7 @@ export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
               La foto del problema es obligatoria. Aceptá el permiso para continuar.
             </Text>
             <Pressable
-              style={styles.boton}
+              style={[styles.boton, { backgroundColor: colors.primary }]}
               onPress={() => {
                 void asegurarPermiso();
               }}>
@@ -89,7 +93,11 @@ export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
           </Pressable>
           {permiso?.granted && (
             <Pressable
-              style={[styles.boton, capturando && styles.botonOff]}
+              style={[
+                styles.boton,
+                { backgroundColor: colors.primary },
+                capturando && styles.botonOff,
+              ]}
               onPress={() => {
                 void tomarFoto();
               }}
@@ -122,7 +130,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   boton: {
-    backgroundColor: "#208AEF",
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 22,

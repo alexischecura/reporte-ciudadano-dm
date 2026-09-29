@@ -10,27 +10,24 @@ import {
 } from "react-native";
 import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
 import type { Reporte, TipoDeReporte } from "../tipos";
+import { useSesion } from "../contexts/sesion-context";
+import { esError } from "../tipos/api";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NotaDeVoz } from "../components/reportes/nota-de-voz";
 import { SeccionFoto } from "../components/reportes/seccion-foto";
-import { useSesion } from "../contexts/sesion-context";  
-import { esError } from "../tipos/api";                  
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
 
-// Fuera del render: evita error react-hooks/purity con reactCompiler.
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
 
-// Mock de ubicación hasta que Alexis conecte expo-location + mapa.
-// TODO(Alexis): GPS real, corrección arrastrando marcador, zona automática, duplicados <50m.
 const COORDS_MOCK = { latitud: -33.0089, longitud: -58.5142 };
 const DIRECCION_MOCK = "Rocamora 1240";
 const ZONA_MOCK = "zon-norte";
 
-/**
- * Pantalla de creación de reportes (Juanchi — Módulo del Vecino).
- * Boceto PRD: tipo -> foto(s) -> dónde -> contanos -> ENVIAR -> éxito con código.
- */
 export default function ReportarScreen() {
+  const colors = useTheme();
   const { usuario } = useSesion();
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [cargandoTipos, setCargandoTipos] = useState(true);
@@ -108,137 +105,159 @@ export default function ReportarScreen() {
 
   if (exito) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.exito}>
-          <Text style={styles.exitoTitulo}>¡Listo!</Text>
-          <Text style={styles.exitoTxt}>Tu reporte se guardó.</Text>
-          <Text style={styles.codigo}>{exito.codigo}</Text>
-          <Text style={styles.exitoTxt}>
-            Guardalo para seguir tu reclamo en el mostrador.
-          </Text>
-          <Pressable
-            style={styles.boton}
-            onPress={() => {
-              setExito(null);
-              setTipoId(null);
-              setFotos([]);
-              setDescripcion("");
-              setAudioUri(null);
-            }}
-          >
-            <Text style={styles.botonTxt}>Crear otro reporte</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+      <ThemedView style={styles.safe}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.exito}>
+            <ThemedText style={styles.exitoTitulo}>¡Listo!</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.exitoTxt}>
+              Tu reporte se guardó.
+            </ThemedText>
+            <ThemedText themeColor="primary" style={styles.codigo}>
+              {exito.codigo}
+            </ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.exitoTxt}>
+              Guardalo para seguir tu reclamo en el mostrador.
+            </ThemedText>
+            <Pressable
+              style={[styles.boton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setExito(null);
+                setTipoId(null);
+                setFotos([]);
+                setDescripcion("");
+                setAudioUri(null);
+              }}
+            >
+              <Text style={styles.botonTxt}>Crear otro reporte</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </ThemedView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView
-        contentContainerStyle={styles.cont}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.titulo}>Nuevo reporte</Text>
-
-        <Text style={styles.seccion}>¿Qué pasa?</Text>
-        {cargandoTipos ? (
-          <ActivityIndicator />
-        ) : errorTipos ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTxt}>{errorTipos}</Text>
-            <Pressable
-              style={styles.botonSec}
-              onPress={() => void reintentarTipos()}
-            >
-              <Text style={styles.botonSecTxt}>Reintentar</Text>
-            </Pressable>
-          </View>
-        ) : tipos.length === 0 ? (
-          <Text style={styles.sub}>No hay tipos de problema disponibles.</Text>
-        ) : (
-          <View style={styles.grilla}>
-            {tipos.map((t) => {
-              const activo = t.id === tipoId;
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => setTipoId(t.id)}
-                  style={[
-                    styles.chip,
-                    { borderColor: t.color },
-                    activo && {
-                      backgroundColor: t.color,
-                      borderColor: t.color,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.chipTxt, activo && styles.chipTxtActivo]}
-                  >
-                    {t.nombre}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        <SeccionFoto
-          fotos={fotos}
-          directorioBorrador={DIRECTORIO_BORRADOR}
-          onCambiar={setFotos}
-        />
-
-        <View style={styles.bloque}>
-          <Text style={styles.seccion}>¿Dónde?</Text>
-          <Text style={styles.sub}>
-            {DIRECCION_MOCK} — a 12 m de vos (GPS mockeado, lo conecta Alexis).
-          </Text>
-        </View>
-
-        <View style={styles.bloque}>
-          <Text style={styles.seccion}>Contanos (opcional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Pozo grande en la mano hacia el centro..."
-            value={descripcion}
-            onChangeText={setDescripcion}
-            multiline
-            maxLength={500}
-          />
-        </View>
-
-        <NotaDeVoz
-          audioUri={audioUri}
-          directorioBorrador={DIRECTORIO_BORRADOR}
-          onCambiar={setAudioUri}
-        />
-
-        {errorEnvio && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTxt}>{errorEnvio}</Text>
-          </View>
-        )}
-
-        <Pressable
-          style={[styles.boton, !puedeEnviar && styles.botonOff]}
-          disabled={!puedeEnviar}
-          onPress={() => void enviar()}
+    <ThemedView style={styles.safe}>
+      <SafeAreaView style={styles.safe}>
+        <ScrollView
+          contentContainerStyle={styles.cont}
+          keyboardShouldPersistTaps="handled"
         >
-          {enviando ? (
-            <ActivityIndicator color="#fff" />
+          <ThemedText style={styles.titulo}>Nuevo reporte</ThemedText>
+
+          <ThemedText style={styles.seccion}>¿Qué pasa?</ThemedText>
+          {cargandoTipos ? (
+            <ActivityIndicator />
+          ) : errorTipos ? (
+            <ThemedView type="backgroundElement" style={styles.errorBox}>
+              <Text style={styles.errorTxt}>{errorTipos}</Text>
+              <Pressable
+                style={[styles.botonSec, { borderColor: colors.primary }]}
+                onPress={() => void reintentarTipos()}
+              >
+                <ThemedText themeColor="primary" style={styles.botonSecTxt}>
+                  Reintentar
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
+          ) : tipos.length === 0 ? (
+            <ThemedText themeColor="textSecondary" style={styles.sub}>
+              No hay tipos de problema disponibles.
+            </ThemedText>
           ) : (
-            <Text style={styles.botonTxt}>ENVIAR</Text>
+            <View style={styles.grilla}>
+              {tipos.map((t) => {
+                const activo = t.id === tipoId;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setTipoId(t.id)}
+                    style={[
+                      styles.chip,
+                      { borderColor: t.color },
+                      activo && {
+                        backgroundColor: t.color,
+                        borderColor: t.color,
+                      },
+                    ]}
+                  >
+                    {activo ? (
+                      <Text style={[styles.chipTxt, { color: "#fff" }]}>
+                        {t.nombre}
+                      </Text>
+                    ) : (
+                      <ThemedText style={styles.chipTxt}>{t.nombre}</ThemedText>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
           )}
-        </Pressable>
-        {!puedeEnviar && (
-          <Text style={styles.ayuda}>
-            Elegí el tipo de problema y agregá al menos 1 foto para enviar.
-          </Text>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+
+          <SeccionFoto
+            fotos={fotos}
+            directorioBorrador={DIRECTORIO_BORRADOR}
+            onCambiar={setFotos}
+          />
+
+          <View style={styles.bloque}>
+            <ThemedText style={styles.seccion}>¿Dónde?</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.sub}>
+              {DIRECCION_MOCK} — a 12 m de vos (GPS mockeado, lo conecta Alexis).
+            </ThemedText>
+          </View>
+
+          <View style={styles.bloque}>
+            <ThemedText style={styles.seccion}>Contanos (opcional)</ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                { borderColor: colors.backgroundSelected, color: colors.text },
+              ]}
+              placeholder="Ej: Pozo grande en la mano hacia el centro..."
+              placeholderTextColor={colors.textSecondary}
+              value={descripcion}
+              onChangeText={setDescripcion}
+              multiline
+              maxLength={500}
+            />
+          </View>
+
+          <NotaDeVoz
+            audioUri={audioUri}
+            directorioBorrador={DIRECTORIO_BORRADOR}
+            onCambiar={setAudioUri}
+          />
+
+          {errorEnvio && (
+            <ThemedView type="backgroundElement" style={styles.errorBox}>
+              <Text style={styles.errorTxt}>{errorEnvio}</Text>
+            </ThemedView>
+          )}
+
+          <Pressable
+            style={[
+              styles.boton,
+              { backgroundColor: colors.primary },
+              !puedeEnviar && styles.botonOff,
+            ]}
+            disabled={!puedeEnviar}
+            onPress={() => void enviar()}
+          >
+            {enviando ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.botonTxt}>ENVIAR</Text>
+            )}
+          </Pressable>
+          {!puedeEnviar && (
+            <ThemedText themeColor="textSecondary" style={styles.ayuda}>
+              Elegí el tipo de problema y agregá al menos 1 foto para enviar.
+            </ThemedText>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
@@ -247,7 +266,7 @@ const styles = StyleSheet.create({
   cont: { padding: 16, gap: 16, paddingBottom: 40 },
   titulo: { fontSize: 24, fontWeight: "800" },
   seccion: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  sub: { fontSize: 14, opacity: 0.7 },
+  sub: { fontSize: 14 },
   bloque: { gap: 4 },
   grilla: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   chip: {
@@ -260,10 +279,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chipTxt: { fontSize: 16, fontWeight: "700" },
-  chipTxtActivo: { color: "#fff" },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
@@ -271,7 +288,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   boton: {
-    backgroundColor: "#208AEF",
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: "center",
@@ -286,22 +302,20 @@ const styles = StyleSheet.create({
   },
   botonSec: {
     borderWidth: 1.5,
-    borderColor: "#208AEF",
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
     alignItems: "center",
     marginTop: 8,
   },
-  botonSecTxt: { color: "#208AEF", fontSize: 16, fontWeight: "700" },
+  botonSecTxt: { fontSize: 16, fontWeight: "700" },
   errorBox: {
-    backgroundColor: "#FDECEA",
     borderRadius: 12,
     padding: 12,
     gap: 8,
   },
   errorTxt: { color: "#8B1A1A", fontSize: 14 },
-  ayuda: { fontSize: 13, opacity: 0.6, textAlign: "center" },
+  ayuda: { fontSize: 13, textAlign: "center" },
   exito: {
     flex: 1,
     alignItems: "center",
@@ -310,6 +324,6 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   exitoTitulo: { fontSize: 32, fontWeight: "800" },
-  exitoTxt: { fontSize: 16, textAlign: "center", opacity: 0.8 },
-  codigo: { fontSize: 24, fontWeight: "800", color: "#208AEF" },
+  exitoTxt: { fontSize: 16, textAlign: "center" },
+  codigo: { fontSize: 24, fontWeight: "800" },
 });

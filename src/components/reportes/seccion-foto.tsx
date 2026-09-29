@@ -1,6 +1,9 @@
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { useTheme } from "@/hooks/use-theme";
 import { eliminarArchivo, guardarFoto } from "../../servicios/almacenamiento";
 import { CamaraReporte } from "./camara-reporte";
 
@@ -12,12 +15,8 @@ interface Props {
 
 export const MAX_FOTOS = 2;
 
-/**
- * Sección de fotos (Juanchi) — 1 obligatoria + 1 opcional.
- * Cámara propia (CameraView) o galería (expo-image-picker).
- * Cada foto se copia a persistente; la X elimina el archivo.
- */
 export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
+  const colors = useTheme();
   const [camaraVisible, setCamaraVisible] = useState(false);
   const llena = fotos.length >= MAX_FOTOS;
 
@@ -32,7 +31,6 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
 
   const abrirGaleria = async () => {
     if (llena) return;
-    // El picker moderno no siempre pide permiso (PHPicker/Android picker).
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.7,
@@ -49,29 +47,38 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
 
   return (
     <View style={styles.cont}>
-      <Text style={styles.titulo}>Foto (obligatoria)</Text>
-      <Text style={styles.sub}>
+      <ThemedText style={styles.titulo}>Foto (obligatoria)</ThemedText>
+      <ThemedText themeColor="textSecondary" style={styles.sub}>
         {fotos.length === 0
           ? "Sin foto no hay reporte."
           : fotos.length === 1
             ? "1 de 2 — podés agregar una segunda si no se entiende."
             : "2 de 2 — máximo alcanzado."}
-      </Text>
+      </ThemedText>
 
       <View style={styles.botones}>
         <Pressable
-          style={[styles.boton, llena && styles.botonOff]}
+          style={[styles.boton, { backgroundColor: colors.primary }, llena && styles.botonOff]}
           disabled={llena}
           onPress={() => setCamaraVisible(true)}>
-          <Text style={styles.botonTxt}>Tomar foto</Text>
+          <ThemedText style={styles.botonTxt} themeColor="background">
+            Tomar foto
+          </ThemedText>
         </Pressable>
         <Pressable
-          style={[styles.boton, styles.botonSec, llena && styles.botonOff]}
+          style={[
+            styles.boton,
+            styles.botonSec,
+            { borderColor: colors.primary },
+            llena && styles.botonOff,
+          ]}
           disabled={llena}
           onPress={() => {
             void abrirGaleria();
           }}>
-          <Text style={styles.botonSecTxt}>Galería</Text>
+          <ThemedText style={styles.botonSecTxt} themeColor="primary">
+            Galería
+          </ThemedText>
         </Pressable>
       </View>
 
@@ -80,7 +87,9 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
           <View key={uri} style={styles.previewWrap}>
             <Image source={{ uri }} style={styles.preview} />
             <Pressable style={styles.quitar} onPress={() => quitar(uri)}>
-              <Text style={styles.quitarTxt}>✕</Text>
+              <ThemedText style={styles.quitarTxt} themeColor="background">
+                ✕
+              </ThemedText>
             </Pressable>
           </View>
         ))}
@@ -100,19 +109,18 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
 const styles = StyleSheet.create({
   cont: { gap: 8 },
   titulo: { fontSize: 18, fontWeight: "700" },
-  sub: { fontSize: 14, opacity: 0.7 },
+  sub: { fontSize: 14 },
   botones: { flexDirection: "row", gap: 12 },
   boton: {
     flex: 1,
-    backgroundColor: "#208AEF",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   botonOff: { opacity: 0.4 },
-  botonTxt: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  botonSec: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: "#208AEF" },
-  botonSecTxt: { color: "#208AEF", fontSize: 17, fontWeight: "700" },
+  botonTxt: { fontSize: 17, fontWeight: "700" },
+  botonSec: { backgroundColor: "transparent", borderWidth: 1.5 },
+  botonSecTxt: { fontSize: 17, fontWeight: "700" },
   previews: { flexDirection: "row", gap: 12, marginTop: 4 },
   previewWrap: { position: "relative", width: 140, height: 140 },
   preview: { width: 140, height: 140, borderRadius: 12, backgroundColor: "#ddd" },
@@ -127,5 +135,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  quitarTxt: { color: "#fff", fontWeight: "700" },
+  quitarTxt: { fontWeight: "700" },
 });
