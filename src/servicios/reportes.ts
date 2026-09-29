@@ -1,6 +1,7 @@
 import { MOCK_REPORTES } from "../mocks/reportes.mock";
 import { MOCK_TIPOS_DE_REPORTE } from "../mocks/tipos-de-reporte.mock";
 import type { BorradorReporte, Reporte, TipoDeReporte } from "../tipos";
+import { type RespuestaApi } from "../tipos/api";
 
 /**
  * Capa de servicios — Módulo del Vecino (Juanchi).
@@ -34,13 +35,23 @@ export function fechaLocalIso(fecha = new Date()): string {
  * Crea un reporte a partir del borrador.
  * Valida la regla PRD: al menos 1 foto (error FOTO_REQUERIDA si no).
  */
-export async function crearReporte(borrador: BorradorReporte): Promise<Reporte> {
+export async function crearReporte(
+  borrador: BorradorReporte,
+  usuarioId: string,
+): Promise<RespuestaApi<Reporte>> {
   if (borrador.fotos.length < 1) {
-    throw new Error("FOTO_REQUERIDA: El reporte necesita al menos una foto.");
+    return {
+      error: {
+        codigo: "FOTO_REQUERIDA",
+        mensaje: "El reporte necesita al menos una foto.",
+      },
+    };
   }
+
   const numero = Math.floor(10000 + Math.random() * 89999);
   const ahora = fechaLocalIso();
-  return {
+
+  const reporte: Reporte = {
     id: `rep-borrador-${Date.now()}`,
     codigo: `GCHU-2026-${numero}`,
     tipoId: borrador.tipoId,
@@ -55,7 +66,7 @@ export async function crearReporte(borrador: BorradorReporte): Promise<Reporte> 
     direccion: borrador.direccion,
     zonaId: borrador.zonaId,
     estado: "recibido",
-    autorId: "usr-084",
+    autorId: usuarioId,
     cuadrillaId: null,
     duplicadoDe: null,
     adhesiones: 0,
@@ -63,6 +74,8 @@ export async function crearReporte(borrador: BorradorReporte): Promise<Reporte> 
     // Alexis lo persistirá en SQLite como `false` hasta sincronizar.
     sincronizado: false,
   };
+
+  return { datos: reporte };
 }
 
 /** Solo para previsualizar casos feos en desarrollo (no usar desde pantallas finales). */

@@ -35,6 +35,7 @@
       ],
       [
         "expo-camera",
+
         {
           "cameraPermission": "Permitir acceso a la cámara para fotografiar el problema reportado.",
           "recordAudioAndroid": false

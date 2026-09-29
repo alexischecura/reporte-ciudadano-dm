@@ -8,11 +8,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
+import type { Reporte, TipoDeReporte } from "../tipos";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NotaDeVoz } from "../components/reportes/nota-de-voz";
 import { SeccionFoto } from "../components/reportes/seccion-foto";
-import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
-import type { Reporte, TipoDeReporte } from "../tipos";
+import { useSesion } from "../contexts/sesion-context";  
+import { esError } from "../tipos/api";                  
 
 // Fuera del render: evita error react-hooks/purity con reactCompiler.
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
@@ -28,6 +31,7 @@ const ZONA_MOCK = "zon-norte";
  * Boceto PRD: tipo -> foto(s) -> dónde -> contanos -> ENVIAR -> éxito con código.
  */
 export default function ReportarScreen() {
+  const { usuario } = useSesion();
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [cargandoTipos, setCargandoTipos] = useState(true);
   const [errorTipos, setErrorTipos] = useState<string | null>(null);
@@ -63,11 +67,12 @@ export default function ReportarScreen() {
   const puedeEnviar = tipoId !== null && fotos.length >= 1 && !enviando;
 
   const enviar = async () => {
-    if (!puedeEnviar || !tipoId) return;
-    try {
-      setEnviando(true);
-      setErrorEnvio(null);
-      const reporte = await crearReporte({
+    if (!puedeEnviar || !tipoId || !usuario) return;
+    setEnviando(true);
+    setErrorEnvio(null);
+
+    const resultado = await crearReporte(
+      {
         tipoId,
         descripcion: descripcion.trim().length > 0 ? descripcion.trim() : null,
         fotos,
@@ -75,13 +80,18 @@ export default function ReportarScreen() {
         coordenadas: COORDS_MOCK,
         direccion: DIRECCION_MOCK,
         zonaId: ZONA_MOCK,
-      });
-      setExito(reporte);
-    } catch (e) {
-      setErrorEnvio(e instanceof Error ? e.message : "No se pudo crear el reporte.");
-    } finally {
-      setEnviando(false);
+      },
+      usuario.id,
+    );
+
+    setEnviando(false);
+
+    if (esError(resultado)) {
+      setErrorEnvio(resultado.error.mensaje);
+      return;
     }
+
+    setExito(resultado.datos);
   };
 
   const reintentarTipos = async () => {
@@ -103,7 +113,9 @@ export default function ReportarScreen() {
           <Text style={styles.exitoTitulo}>¡Listo!</Text>
           <Text style={styles.exitoTxt}>Tu reporte se guardó.</Text>
           <Text style={styles.codigo}>{exito.codigo}</Text>
-          <Text style={styles.exitoTxt}>Guardalo para seguir tu reclamo en el mostrador.</Text>
+          <Text style={styles.exitoTxt}>
+            Guardalo para seguir tu reclamo en el mostrador.
+          </Text>
           <Pressable
             style={styles.boton}
             onPress={() => {
@@ -112,7 +124,8 @@ export default function ReportarScreen() {
               setFotos([]);
               setDescripcion("");
               setAudioUri(null);
-            }}>
+            }}
+          >
             <Text style={styles.botonTxt}>Crear otro reporte</Text>
           </Pressable>
         </View>
@@ -122,7 +135,10 @@ export default function ReportarScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.cont} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.cont}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.titulo}>Nuevo reporte</Text>
 
         <Text style={styles.seccion}>¿Qué pasa?</Text>
@@ -131,7 +147,10 @@ export default function ReportarScreen() {
         ) : errorTipos ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorTxt}>{errorTipos}</Text>
-            <Pressable style={styles.botonSec} onPress={() => void reintentarTipos()}>
+            <Pressable
+              style={styles.botonSec}
+              onPress={() => void reintentarTipos()}
+            >
               <Text style={styles.botonSecTxt}>Reintentar</Text>
             </Pressable>
           </View>
@@ -148,16 +167,28 @@ export default function ReportarScreen() {
                   style={[
                     styles.chip,
                     { borderColor: t.color },
-                    activo && { backgroundColor: t.color, borderColor: t.color },
-                  ]}>
-                  <Text style={[styles.chipTxt, activo && styles.chipTxtActivo]}>{t.nombre}</Text>
+                    activo && {
+                      backgroundColor: t.color,
+                      borderColor: t.color,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.chipTxt, activo && styles.chipTxtActivo]}
+                  >
+                    {t.nombre}
+                  </Text>
                 </Pressable>
               );
             })}
           </View>
         )}
 
-        <SeccionFoto fotos={fotos} directorioBorrador={DIRECTORIO_BORRADOR} onCambiar={setFotos} />
+        <SeccionFoto
+          fotos={fotos}
+          directorioBorrador={DIRECTORIO_BORRADOR}
+          onCambiar={setFotos}
+        />
 
         <View style={styles.bloque}>
           <Text style={styles.seccion}>¿Dónde?</Text>
@@ -178,7 +209,11 @@ export default function ReportarScreen() {
           />
         </View>
 
-        <NotaDeVoz audioUri={audioUri} directorioBorrador={DIRECTORIO_BORRADOR} onCambiar={setAudioUri} />
+        <NotaDeVoz
+          audioUri={audioUri}
+          directorioBorrador={DIRECTORIO_BORRADOR}
+          onCambiar={setAudioUri}
+        />
 
         {errorEnvio && (
           <View style={styles.errorBox}>
@@ -189,7 +224,8 @@ export default function ReportarScreen() {
         <Pressable
           style={[styles.boton, !puedeEnviar && styles.botonOff]}
           disabled={!puedeEnviar}
-          onPress={() => void enviar()}>
+          onPress={() => void enviar()}
+        >
           {enviando ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -242,7 +278,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   botonOff: { opacity: 0.4 },
-  botonTxt: { color: "#fff", fontSize: 18, fontWeight: "800", letterSpacing: 1 },
+  botonTxt: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
   botonSec: {
     borderWidth: 1.5,
     borderColor: "#208AEF",
@@ -253,10 +294,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   botonSecTxt: { color: "#208AEF", fontSize: 16, fontWeight: "700" },
-  errorBox: { backgroundColor: "#FDECEA", borderRadius: 12, padding: 12, gap: 8 },
+  errorBox: {
+    backgroundColor: "#FDECEA",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
   errorTxt: { color: "#8B1A1A", fontSize: 14 },
   ayuda: { fontSize: 13, opacity: 0.6, textAlign: "center" },
-  exito: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  exito: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    padding: 24,
+  },
   exitoTitulo: { fontSize: 32, fontWeight: "800" },
   exitoTxt: { fontSize: 16, textAlign: "center", opacity: 0.8 },
   codigo: { fontSize: 24, fontWeight: "800", color: "#208AEF" },
