@@ -1,3 +1,4 @@
+export * from "./borrador";
 export * from "./cambio-de-estado";
 export * from "./cuadrilla";
 export * from "./reporte";

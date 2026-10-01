@@ -1,7 +1,7 @@
 import * as Device from "expo-device";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, Pressable, StyleSheet, Text } from "react-native";
 
 import { AnimatedIcon } from "@/components/animated-icon";
 import { HintRow } from "@/components/hint-row";
@@ -32,8 +32,7 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
-  const { usuario } = useSesion();
-  const { logout } = useSesion();
+  const { usuario, logout } = useSesion();
 
   return (
     <ThemedView style={styles.container}>
@@ -48,8 +47,9 @@ export default function HomeScreen() {
         <ThemedText type="code" style={styles.code}>
           get started
         </ThemedText>
+
         <ThemedText>
-          {usuario ? `Logueado: ${usuario.nombre}` : "Sin sesión"}
+          {usuario ? `Hola, ${usuario.nombre}` : "Sin sesión"}
         </ThemedText>
         <ThemedText
           onPress={logout}
@@ -57,12 +57,18 @@ export default function HomeScreen() {
         >
           Cerrar sesión
         </ThemedText>
-        <Link href="/operador">Ir a operador (prueba)</Link>
+
+        {/* Temporal de Juanchi. TODO(Alan): quitar al integrar navegación final. */}
+        <Link href="/reportar" asChild>
+          <Pressable style={styles.reportarBtn}>
+            <Text style={styles.reportarTxt}>Crear reporte</Text>
+          </Pressable>
+        </Link>
 
         <ThemedView type="backgroundElement" style={styles.stepContainer}>
           <HintRow
             title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+            hint={<ThemedText type="code">src/app/(tabs)/index.tsx</ThemedText>}
           />
           <HintRow title="Dev tools" hint={getDevMenuHint()} />
           <HintRow
@@ -72,9 +78,6 @@ export default function HomeScreen() {
         </ThemedView>
 
         {Platform.OS === "web" && <WebBadge />}
-        <Link href="/login" style={{ marginTop: 16 }}>
-          <ThemedText>Ir a Login (temporal)</ThemedText>
-        </Link>
       </SafeAreaView>
     </ThemedView>
   );
@@ -114,4 +117,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,
   },
+  reportarBtn: {
+    backgroundColor: "#208AEF",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
+  reportarTxt: { color: "#fff", fontSize: 17, fontWeight: "700" },
 });
