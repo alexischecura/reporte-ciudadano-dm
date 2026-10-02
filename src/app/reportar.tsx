@@ -64,7 +64,11 @@ export default function ReportarScreen() {
   const puedeEnviar = tipoId !== null && fotos.length >= 1 && !enviando;
 
   const enviar = async () => {
-    if (!puedeEnviar || !tipoId || !usuario) return;
+    if (!puedeEnviar || !tipoId) return;
+    if (!usuario) {
+      setErrorEnvio("Tenés que iniciar sesión para crear un reporte.");
+      return;
+    }
     setEnviando(true);
     setErrorEnvio(null);
 
@@ -150,7 +154,9 @@ export default function ReportarScreen() {
             <ActivityIndicator />
           ) : errorTipos ? (
             <ThemedView type="backgroundElement" style={styles.errorBox}>
-              <Text style={styles.errorTxt}>{errorTipos}</Text>
+              <ThemedText themeColor="error" style={styles.errorTxt}>
+                {errorTipos}
+              </ThemedText>
               <Pressable
                 style={[styles.botonSec, { borderColor: colors.primary }]}
                 onPress={() => void reintentarTipos()}
@@ -231,7 +237,9 @@ export default function ReportarScreen() {
 
           {errorEnvio && (
             <ThemedView type="backgroundElement" style={styles.errorBox}>
-              <Text style={styles.errorTxt}>{errorEnvio}</Text>
+              <ThemedText themeColor="error" style={styles.errorTxt}>
+                {errorEnvio}
+              </ThemedText>
             </ThemedView>
           )}
 
@@ -314,7 +322,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
   },
-  errorTxt: { color: "#8B1A1A", fontSize: 14 },
+  errorTxt: { fontSize: 14 },
   ayuda: { fontSize: 13, textAlign: "center" },
   exito: {
     flex: 1,

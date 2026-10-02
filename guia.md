@@ -10,16 +10,17 @@ el módulo del Vecino (crear reporte + cámara + galería + nota de voz).
 
 ## 1. Qué hay que instalar (una sola vez)
 
-| Herramienta | Para qué | Cómo instalarla |
-|---|---|---|
-| Node.js 24 + npm 11 | Correr el proyecto (ya los tenés: `v24.20.0` / `11.19.1`) | https://nodejs.org (versión LTS) |
-| Dependencias del proyecto | Expo SDK 57, React Native, cámara, audio, etc. | `npm install` (ver paso 3) |
-| Expo Go (en tu celular) | Probar la app sin compilar nada | Play Store / App Store → buscar "Expo Go" |
-| Opcional: Android Studio | Emulador Android en la PC | https://developer.android.com/studio |
-| Opcional: EAS CLI | Generar el APK de entrega | `npm i -g eas-cli` (solo cuando toque el build) |
+| Herramienta               | Para qué                                                  | Cómo instalarla                                 |
+| ------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| Node.js 24 + npm 11       | Correr el proyecto (ya los tenés: `v24.20.0` / `11.19.1`) | https://nodejs.org (versión LTS)                |
+| Dependencias del proyecto | Expo SDK 57, React Native, cámara, audio, etc.            | `npm install` (ver paso 3)                      |
+| Expo Go (en tu celular)   | Probar la app sin compilar nada                           | Play Store / App Store → buscar "Expo Go"       |
+| Opcional: Android Studio  | Emulador Android en la PC                                 | https://developer.android.com/studio            |
+| Opcional: EAS CLI         | Generar el APK de entrega                                 | `npm i -g eas-cli` (solo cuando toque el build) |
 
 **Tu módulo ya tiene todo instalado** (`expo-camera`, `expo-image-picker`,
 `expo-audio`, `expo-file-system` en versiones compatibles con SDK 57).
+El login/sesión además usa `expo-secure-store` y `expo-local-authentication`.
 No instales nada más sin avisar al grupo: cada paquete de más puede romper
 la compatibilidad del SDK.
 
@@ -40,6 +41,10 @@ git branch --show-current  # esperado: juanchicode
 
 # 3. Paquetes de tu módulo (los 4 tienen que aparecer)
 npm list expo-camera expo-image-picker expo-audio expo-file-system --depth=0
+
+# 3b. Paquetes de sesión (los 2 tienen que aparecer; si faltan, `npx expo start`
+#     falla con "Failed to resolve plugin for module expo-secure-store")
+npm list expo-secure-store expo-local-authentication --depth=0
 
 # 4. El código compila (sin errores = OK)
 npx tsc --noEmit
@@ -66,13 +71,13 @@ npx expo start   # abre el menú de Expo con un QR
 
 Opciones dentro del menú de Expo:
 
-| Tecla | Qué hace | Cuándo usarla |
-|---|---|---|
-| Escanear QR con Expo Go | Abre la app en tu celular físico | **Recomendado** para cámara y micrófono |
-| `a` | Abre emulador Android | Si no tenés celular a mano (cámara/mic fallan o mienten) |
-| `w` | Abre en el navegador | Solo para ver pantallas, sin cámara ni micrófono |
-| `r` | Recarga la app | Cuando cambiaste código y no se actualizó |
-| `m` | Abre el menú de desarrollo | Para recargar, inspeccionar, etc. |
+| Tecla                   | Qué hace                         | Cuándo usarla                                            |
+| ----------------------- | -------------------------------- | -------------------------------------------------------- |
+| Escanear QR con Expo Go | Abre la app en tu celular físico | **Recomendado** para cámara y micrófono                  |
+| `a`                     | Abre emulador Android            | Si no tenés celular a mano (cámara/mic fallan o mienten) |
+| `w`                     | Abre en el navegador             | Solo para ver pantallas, sin cámara ni micrófono         |
+| `r`                     | Recarga la app                   | Cuando cambiaste código y no se actualizó                |
+| `m`                     | Abre el menú de desarrollo       | Para recargar, inspeccionar, etc.                        |
 
 Una vez abierta la app: pestaña **Reportar** (o botón **"Crear reporte"** en Home).
 
@@ -97,6 +102,9 @@ Una vez abierta la app: pestaña **Reportar** (o botón **"Crear reporte"** en H
    `Crear otro reporte` reinicia el formulario.
 6. **Los archivos quedan guardados** en `document/reportes/borrador-<timestamp>/`
    (carpeta persistente del teléfono, sobrevive reinicios; no es la cache temporal).
+7. **Modo oscuro:** cambiá el celular a tema oscuro y recorré Reportar.
+   Fondo negro, textos blancos, botones en azul más claro, errores en rosa legible.
+   La cámara queda negra siempre (es intencional).
 
 ---
 
@@ -104,11 +112,11 @@ Una vez abierta la app: pestaña **Reportar** (o botón **"Crear reporte"** en H
 
 La cátedra pregunta esto. Probalo con cada permiso (cámara y micrófono):
 
-| Caso | Qué hacer | Qué tiene que pasar |
-|---|---|---|
-| Aceptar | Aceptar el permiso | El flujo sigue normal |
-| Denegar 1 vez | Denegar | Aparece un cartel con **"Reintentar"** |
-| Bloquear | Denegar 2 veces / "no volver a preguntar" (Android) | Aparece un cartel con **"Abrir ajustes"** → lleva a configuración → activás → volvés → funciona |
+| Caso          | Qué hacer                                           | Qué tiene que pasar                                                                             |
+| ------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Aceptar       | Aceptar el permiso                                  | El flujo sigue normal                                                                           |
+| Denegar 1 vez | Denegar                                             | Aparece un cartel con **"Reintentar"**                                                          |
+| Bloquear      | Denegar 2 veces / "no volver a preguntar" (Android) | Aparece un cartel con **"Abrir ajustes"** → lleva a configuración → activás → volvés → funciona |
 
 Dato útil: negar la **cámara** no bloquea la **galería**. El vecino igual puede
 adjuntar una foto previa.
@@ -117,14 +125,15 @@ adjuntar una foto previa.
 
 ## 6. Si algo falla (errores comunes)
 
-| Síntoma | Causa probable | Solución |
-|---|---|---|
-| `Cannot determine the project's Expo SDK version` | Falta `npm install` | Corré `npm install` y reintentá |
-| La cámara sale negra / no anda | Estás en emulador o web | Probá en celular físico con Expo Go |
-| El micrófono no graba | Permiso denegado o emulador | Revisá el cartel de permiso / probá en físico |
-| `npx expo install --check` pide actualizar varios paquetes | Subas menores del SDK | **No actualices** sin coordinar con el grupo; tu módulo anda con las actuales |
-| Cambié código y no se refleja | Metro cacheó | Presioná `r` en la terminal de Expo, o reiniciá con `npx expo start -c` |
-| `git status` muestra `datos tpi 2026/` | Esa carpeta es personal | Ya está en `.gitignore`; no la commitees |
+| Síntoma                                                    | Causa probable              | Solución                                                                      |
+| ---------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
+| `Cannot determine the project's Expo SDK version`          | Falta `npm install`         | Corré `npm install` y reintentá                                               |
+| `Failed to resolve plugin for module "expo-secure-store"`  | `npm install` incompleto (faltan `expo-secure-store` y/o `expo-local-authentication` en `node_modules`) | Corré `npm install` y verificá con `npm list expo-secure-store expo-local-authentication --depth=0` |
+| La cámara sale negra / no anda                             | Estás en emulador o web     | Probá en celular físico con Expo Go                                           |
+| El micrófono no graba                                      | Permiso denegado o emulador | Revisá el cartel de permiso / probá en físico                                 |
+| `npx expo install --check` pide actualizar varios paquetes | Subas menores del SDK       | **No actualices** sin coordinar con el grupo; tu módulo anda con las actuales |
+| Cambié código y no se refleja                              | Metro cacheó                | Presioná `r` en la terminal de Expo, o reiniciá con `npx expo start -c`       |
+| `git status` muestra `datos tpi 2026/`                     | Esa carpeta es personal     | Ya está en `.gitignore`; no la commitees                                      |
 
 ---
 
