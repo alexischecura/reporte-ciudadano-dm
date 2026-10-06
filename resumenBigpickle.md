@@ -37,3 +37,45 @@ Probar permisos en celular físico antes de la defensa (checklist ya documentada
 4. Accesibilidad: label en botones y más área táctil en el botón ✕ de las fotos.
 
 Ninguna es bloqueante. Está bien lo hecho hasta ahora.
+
+---
+
+## Actualización 02/10/2026 — Revisión de cambios del compañero + fixes
+
+### 1. `crearReporte` unificado a `{ datos } / { error }` ✅
+
+- `src/servicios/reportes.ts`: `crearReporte(borrador, usuarioId): Promise<RespuestaApi<Reporte>>`.
+  Ya no tira `throw`; devuelve `{ error: { codigo: "FOTO_REQUERIDA", ... } }` o `{ datos: reporte }`,
+  mismo formato que `src/servicios/auth.ts` (`login` / `registrar` / `validarToken`).
+- No hay función helper de errores: se usa retorno discriminado inline + el type-guard
+  `esError()` que ya existía en `src/tipos/api.ts`.
+- `src/app/reportar.tsx` ya estaba adaptado al nuevo formato (sin `try/catch` para `crearReporte`).
+- `autorId` sale del usuario logueado (`useSesion().usuario.id`), no más `usr-084` fijo.
+- Agregado blindaje: si `usuarioId` viene vacío → `{ error: { codigo: "NO_AUTENTICADO",
+  mensaje: "Tenés que iniciar sesión para crear un reporte." } }`, y la pantalla muestra
+  ese mensaje en vez de un `return` silencioso.
+
+### 2. Dark mode corregido 🌙
+
+- `src/constants/theme.ts`: agregado color `error` (`light #8B1A1A` / `dark #FF8A8A`).
+  El azul ya venía del theme (`light #208AEF` → `dark #4C9AFF`, más claro a propósito por contraste).
+- `reportar.tsx`: textos de error con `<ThemedText themeColor="error">` (el `#8B1A1A` fijo era ilegible en dark).
+- `seccion-foto.tsx`: "Tomar foto" y "✕" con `#fff` fijo (el `themeColor="background"` quedaba negro sobre azul en dark);
+  placeholder del preview usa `colors.backgroundSelected`.
+- `nota-de-voz.tsx`: stop/eliminar usan `colors.error` / `themeColor="error"` (el `#C1440E` fijo tenía poco contraste en dark).
+- `camara-reporte.tsx`: fondo negro fijo intencional, no se toca (las cámaras fullscreen siempre son oscuras).
+- `themed-view.tsx`: `lightColor`/`darkColor` ahora sí se respetan (antes se ignoraban).
+  `themed-text.tsx`: sacado el `#3c87f7` hardcodeado de `linkPrimary`.
+
+### 3. Entorno: `expo-secure-store` faltante 🔧
+
+- `npx expo start` fallaba con `PluginError: Failed to resolve plugin for module "expo-secure-store"`.
+- Causa: declarado en `package.json` (`~57.0.4`) y en `app.json` (válido), pero la carpeta
+  `node_modules/expo-secure-store` (y `expo-local-authentication`) no existía → `npm install` incompleto.
+- Fix: `npm install` + verificado con `npx expo config --type public` (resuelve sin errores).
+
+### Verificación actual
+
+- `npx eslint` en los 7 archivos tocados → limpio.
+- `npx tsc --noEmit` → solo 5 errores pre-existentes (`login`/`registro` por rutas del router,
+  `biometria`/`sesion` por tipos de módulos expo), ninguno en lo tocado.

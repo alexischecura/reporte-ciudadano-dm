@@ -61,7 +61,7 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
           style={[styles.boton, { backgroundColor: colors.primary }, llena && styles.botonOff]}
           disabled={llena}
           onPress={() => setCamaraVisible(true)}>
-          <ThemedText style={styles.botonTxt} themeColor="background">
+          <ThemedText style={[styles.botonTxt, { color: "#fff" }]}>
             Tomar foto
           </ThemedText>
         </Pressable>
@@ -85,9 +85,12 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
       <View style={styles.previews}>
         {fotos.map((uri) => (
           <View key={uri} style={styles.previewWrap}>
-            <Image source={{ uri }} style={styles.preview} />
+            <Image
+              source={{ uri }}
+              style={[styles.preview, { backgroundColor: colors.backgroundSelected }]}
+            />
             <Pressable style={styles.quitar} onPress={() => quitar(uri)}>
-              <ThemedText style={styles.quitarTxt} themeColor="background">
+              <ThemedText style={[styles.quitarTxt, { color: "#fff" }]}>
                 ✕
               </ThemedText>
             </Pressable>
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
   botonSecTxt: { fontSize: 17, fontWeight: "700" },
   previews: { flexDirection: "row", gap: 12, marginTop: 4 },
   previewWrap: { position: "relative", width: 140, height: 140 },
-  preview: { width: 140, height: 140, borderRadius: 12, backgroundColor: "#ddd" },
+  preview: { width: 140, height: 140, borderRadius: 12 },
   quitar: {
     position: "absolute",
     top: -8,

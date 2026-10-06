@@ -39,6 +39,15 @@ export async function crearReporte(
   borrador: BorradorReporte,
   usuarioId: string,
 ): Promise<RespuestaApi<Reporte>> {
+  if (!usuarioId?.trim()) {
+    return {
+      error: {
+        codigo: "NO_AUTENTICADO",
+        mensaje: "Tenés que iniciar sesión para crear un reporte.",
+      },
+    };
+  }
+
   if (borrador.fotos.length < 1) {
     return {
       error: {

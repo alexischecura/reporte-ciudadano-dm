@@ -127,7 +127,9 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
           <ThemedText style={styles.crono}>
             ● {formatoTiempo(recState.durationMillis)}
           </ThemedText>
-          <Pressable style={[styles.boton, styles.botonStop]} onPress={() => void parar()}>
+          <Pressable
+            style={[styles.boton, styles.botonStop, { backgroundColor: colors.error }]}
+            onPress={() => void parar()}>
             <Text style={styles.botonTxt}>Parar</Text>
           </Pressable>
         </View>
@@ -146,7 +148,9 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
             {formatoTiempo(playStatus.duration * 1000)}
           </ThemedText>
           <Pressable onPress={eliminar}>
-            <Text style={styles.eliminar}>Eliminar</Text>
+            <ThemedText themeColor="error" style={styles.eliminar}>
+              Eliminar
+            </ThemedText>
           </Pressable>
         </View>
       )}
@@ -165,10 +169,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   botonTxt: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  botonStop: { backgroundColor: "#C1440E" },
+  botonStop: {},
   botonSec: { backgroundColor: "transparent", borderWidth: 1.5, flex: 1 },
   botonSecTxt: { fontSize: 17, fontWeight: "700" },
   crono: { fontSize: 17, fontWeight: "700", flex: 1 },
   tiempo: { fontSize: 14 },
-  eliminar: { color: "#C1440E", fontSize: 15, fontWeight: "700" },
+  eliminar: { fontSize: 15, fontWeight: "700" },
 });
