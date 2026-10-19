@@ -10,8 +10,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 
+import {
+  MOCK_CAMBIOS_ESTADO_CINCO_PASOS,
+  MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO,
+} from "../../mocks/cambios-de-estado.mock";
 import { MOCK_REPORTES } from "../../mocks/reportes.mock";
 import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
+import type { CambioDeEstado } from "../../tipos/cambio-de-estado";
 import type { Reporte } from "../../tipos";
 import { vibracionSuave } from "../../utils/haptica";
 
@@ -29,6 +34,17 @@ const estadoConfig: Record<
 const getTipoReporte = (tipoId: string) =>
   MOCK_TIPOS_DE_REPORTE.find((tipo) => tipo.id === tipoId) ?? null;
 
+const getCambiosEstadoPorReporte = (reporteId: string | null): CambioDeEstado[] => {
+  if (!reporteId) return [];
+
+  return [...MOCK_CAMBIOS_ESTADO_CINCO_PASOS, ...MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO]
+    .filter((cambio) => cambio.reporteId === reporteId)
+    .sort(
+      (a, b) =>
+        new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+    );
+};
+
 const formatFecha = (fechaIso: string): string => {
   const fecha = new Date(fechaIso);
 
@@ -39,12 +55,17 @@ const formatFecha = (fechaIso: string): string => {
   }).format(fecha);
 };
 
-export default function SeguimientoVecino(): JSX.Element {
+export default function SeguimientoVecino(): React.ReactElement {
   const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(
     null,
   );
 
   const misReportes = useMemo(() => MOCK_REPORTES.slice(0, 3), []);
+
+  const historialReporte = useMemo(
+    () => getCambiosEstadoPorReporte(reporteSeleccionado?.id ?? null),
+    [reporteSeleccionado],
+  );
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
@@ -133,24 +154,52 @@ export default function SeguimientoVecino(): JSX.Element {
             <View style={styles.timelineContainer}>
               <Text style={styles.timelineTitle}>Seguimiento</Text>
 
-              <View style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <Text style={styles.timelineText}>Recibido</Text>
-              </View>
+              {(historialReporte.length > 0 ? historialReporte : []).map(
+                (cambio, index, items) => (
+                  <React.Fragment key={cambio.id}>
+                    <View style={styles.timelineRow}>
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          cambio.estado === reporteSeleccionado?.estado &&
+                            styles.timelineDotActive,
+                        ]}
+                      />
+                      <View style={styles.timelineTextWrap}>
+                        <Text style={styles.timelineText}>
+                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
+                        </Text>
+                        {cambio.comentario ? (
+                          <Text style={styles.timelineComment}>
+                            {cambio.comentario}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
 
-              <View style={styles.timelineLine} />
+                    {index < items.length - 1 ? (
+                      <View style={styles.timelineLine} />
+                    ) : null}
+                  </React.Fragment>
+                ),
+              )}
 
-              <View style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <Text style={styles.timelineText}>En Revisión</Text>
-              </View>
-
-              <View style={styles.timelineLine} />
-
-              <View style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <Text style={styles.timelineText}>Resuelto</Text>
-              </View>
+              {historialReporte.length === 0 && reporteSeleccionado && (
+                <View style={styles.timelineRow}>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      styles.timelineDotActive,
+                    ]}
+                  />
+                  <View style={styles.timelineTextWrap}>
+                    <Text style={styles.timelineText}>
+                      {estadoConfig[reporteSeleccionado.estado]?.label ??
+                        reporteSeleccionado.estado}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             <TouchableOpacity
@@ -307,19 +356,32 @@ const styles = StyleSheet.create({
   },
   timelineRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
   },
   timelineDot: {
     width: 10,
     height: 10,
     borderRadius: 999,
+    backgroundColor: "#D1D5DB",
+    marginTop: 6,
+  },
+  timelineDotActive: {
     backgroundColor: "#1F6FEB",
+  },
+  timelineTextWrap: {
+    flex: 1,
+    gap: 4,
   },
   timelineText: {
     fontSize: 14,
     color: "#374151",
     fontWeight: "600",
+  },
+  timelineComment: {
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 18,
   },
   timelineLine: {
     width: 2,

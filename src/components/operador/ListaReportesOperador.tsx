@@ -64,7 +64,7 @@ const obtenerEstadoFiltrado = (estado: Reporte["estado"]): FiltroEstado => {
   return "en_progreso";
 };
 
-export default function ListaReportesOperador(): JSX.Element {
+export default function ListaReportesOperador(): React.ReactElement {
   const [filtroActivo, setFiltroActivo] = useState<FiltroEstado>("todos");
   const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(
     null,
