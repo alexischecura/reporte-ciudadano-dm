@@ -60,7 +60,7 @@ export default function SeguimientoVecino(): React.ReactElement {
     null,
   );
 
-  const misReportes = useMemo(() => MOCK_REPORTES.slice(0, 3), []);
+  const misReportes = useMemo(() => MOCK_REPORTES, []);
 
   const historialReporte = useMemo(
     () => getCambiosEstadoPorReporte(reporteSeleccionado?.id ?? null),
