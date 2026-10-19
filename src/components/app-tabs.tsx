@@ -27,6 +27,15 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+
+      {/* Temporal de Juanchi (Módulo del Vecino). TODO(Alan): integrar /reportar a la navegación final y quitar este tab. */}
+      <NativeTabs.Trigger name="reportar">
+        <NativeTabs.Trigger.Label>Reportar</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/explore.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
