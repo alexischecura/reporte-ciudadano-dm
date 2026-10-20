@@ -19,6 +19,7 @@ import { SeccionFoto } from "../components/reportes/seccion-foto";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
+import { router } from "expo-router";
 
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
 
@@ -148,6 +149,14 @@ export default function ReportarScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText style={styles.titulo}>Nuevo reporte</ThemedText>
+          <Pressable
+            style={[styles.botonSec, { borderColor: colors.primary }]}
+            onPress={() => router.push("/seguimiento")}
+          >
+            <ThemedText themeColor="primary" style={styles.botonSecTxt}>
+              Ver mis reclamos
+            </ThemedText>
+          </Pressable>
 
           <ThemedText style={styles.seccion}>¿Qué pasa?</ThemedText>
           {cargandoTipos ? (
