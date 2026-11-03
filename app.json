@@ -24,13 +24,24 @@
         "backgroundImage": "./assets/images/android-icon-background.jpg",
         "monochromeImage": "./assets/images/android-icon-monochrome.jpg"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.jpg"
     },
     "plugins": [
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

@@ -8,18 +8,19 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSesion } from "../contexts/sesion-context";
 import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
 import type { Reporte, TipoDeReporte } from "../tipos";
-import { useSesion } from "../contexts/sesion-context";
 import { esError } from "../tipos/api";
 
-import { SafeAreaView } from "react-native-safe-area-context";
-import { NotaDeVoz } from "../components/reportes/nota-de-voz";
-import { SeccionFoto } from "../components/reportes/seccion-foto";
+import SelectorUbicacion from "@/components/reportes/mapa-reporte";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { NotaDeVoz } from "../components/reportes/nota-de-voz";
+import { SeccionFoto } from "../components/reportes/seccion-foto";
 
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
 
@@ -38,6 +39,11 @@ export default function ReportarScreen() {
   const [fotos, setFotos] = useState<string[]>([]);
   const [descripcion, setDescripcion] = useState("");
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [ubicacion, setUbicacion] = useState<{
+    latitude: number;
+    longitude: number;
+    direccion: string;
+  } | null>(null);
 
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
@@ -217,9 +223,17 @@ export default function ReportarScreen() {
 
           <View style={styles.bloque}>
             <ThemedText style={styles.seccion}>¿Dónde?</ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.sub}>
-              {DIRECCION_MOCK} — a 12 m de vos (GPS mockeado, lo conecta Alexis).
-            </ThemedText>
+            <SelectorUbicacion onLocationSelect={setUbicacion} />
+
+            {ubicacion && (
+              <Text>
+                Dirección: {ubicacion.direccion}
+                {"\n"}
+                Latitud: {ubicacion.latitude}
+                {"\n"}
+                Longitud: {ubicacion.longitude}
+              </Text>
+            )}
           </View>
 
           <View style={styles.bloque}>

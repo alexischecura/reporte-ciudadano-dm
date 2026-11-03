@@ -97,13 +97,6 @@
 //   },
 // });
 
-
-
-
-
-
-
-
 // VER LISTA DE REPORTES OPERADOR
 
 // import React from 'react';
@@ -114,15 +107,25 @@
 //   return <ListaReportesOperador />;
 // }
 
-
-
-
-
 // VER SEGUIMIENTO VECINO
-import React from 'react';
-import SeguimientoVecino from '../components/seguimiento/SeguimientoVecino';
+import { Redirect } from "expo-router";
 
-export default function PantallaPrueba() {
+import { useSesion } from "@/contexts/sesion-context";
 
-  return <SeguimientoVecino />;
+export default function RootIndexRedirect() {
+  const { usuario, cargando } = useSesion();
+
+  if (cargando) {
+    return null;
+  }
+
+  if (!usuario) {
+    return <Redirect href="/login" />;
+  }
+
+  if (usuario.rol === "vecino") {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Redirect href="/operador" />;
 }
