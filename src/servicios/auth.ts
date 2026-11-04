@@ -1,9 +1,6 @@
-import { MOCK_USUARIOS } from "../mocks/usuarios.mock";
 import { Usuario } from "../tipos";
 import { RespuestaApi } from "../tipos/api";
-
-const esperar = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+import { ApiError, request } from "./http";
 
 export interface CredencialesLogin {
   email: string;
@@ -22,81 +19,97 @@ export interface SesionUsuario {
   token: string;
 }
 
-export async function login(
-  credenciales: CredencialesLogin,
-): Promise<RespuestaApi<SesionUsuario>> {
-  await esperar(500);
-
-  const usuario = MOCK_USUARIOS.find(
-    (u) => u.email.toLowerCase() === credenciales.email.toLowerCase(),
-  );
-
-  if (!usuario || !credenciales.password) {
+function mapearError(
+  mensajeDefault: string,
+  codigoDefault: string,
+  error: unknown,
+): RespuestaApi<never> {
+  if (error instanceof ApiError) {
     return {
       error: {
-        codigo: "CREDENCIALES_INVALIDAS",
-        mensaje: "El email o la contraseña no son correctos.",
+        codigo: error.code || codigoDefault,
+        mensaje: error.message || mensajeDefault,
       },
     };
   }
 
-  const token = `token-${usuario.id}-${Date.now()}`;
+  return {
+    error: {
+      codigo: codigoDefault,
+      mensaje: mensajeDefault,
+    },
+  };
+}
 
-  return { datos: { usuario, token } };
+export async function login(
+  credenciales: CredencialesLogin,
+): Promise<RespuestaApi<SesionUsuario>> {
+  try {
+    const data = await request<{ token: string; usuario: Usuario }>(
+      "/auth/ingreso",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          email: credenciales.email,
+          contrasena: credenciales.password,
+        }),
+      },
+    );
+
+    return {
+      datos: {
+        usuario: data.usuario,
+        token: data.token,
+      },
+    };
+  } catch (error) {
+    return mapearError(
+      "El email o la contraseña no son correctos.",
+      "CREDENCIALES_INVALIDAS",
+      error,
+    );
+  }
 }
 
 export async function registrar(
   datos: DatosRegistro,
 ): Promise<RespuestaApi<Usuario>> {
-  await esperar(500);
+  try {
+    const data = await request<Usuario>("/auth/registro", {
+      method: "POST",
+      body: JSON.stringify({
+        nombre: datos.nombre,
+        email: datos.email,
+        contrasena: datos.password,
+        telefono: datos.telefono ?? undefined,
+      }),
+    });
 
-  const yaExiste = MOCK_USUARIOS.some(
-    (u) => u.email.toLowerCase() === datos.email.toLowerCase(),
-  );
-
-  if (yaExiste) {
-    return {
-      error: {
-        codigo: "EMAIL_YA_REGISTRADO",
-        mensaje: "Ya existe una cuenta con ese email.",
-      },
-    };
+    return { datos: data };
+  } catch (error) {
+    return mapearError(
+      "No se pudo crear la cuenta.",
+      "REGISTRO_FALLIDO",
+      error,
+    );
   }
-
-  const nuevoUsuario: Usuario = {
-    id: `usr-${Date.now()}`,
-    nombre: datos.nombre,
-    email: datos.email,
-    telefono: datos.telefono,
-    rol: "vecino",
-    zonaId: null,
-    avisosActivos: true,
-    creadoEn: new Date().toISOString(),
-  };
-
-  MOCK_USUARIOS.push(nuevoUsuario);
-
-  return { datos: nuevoUsuario };
 }
 
 export async function validarToken(
   token: string,
 ): Promise<RespuestaApi<Usuario>> {
-  await esperar(300);
+  try {
+    const data = await request<Usuario>("/yo", {
+      method: "GET",
+      token,
+    });
 
-  const partes = token.split("-");
-  const usuarioId = partes.length >= 3 ? `${partes[1]}-${partes[2]}` : null;
-
-  const usuario = MOCK_USUARIOS.find((u) => u.id === usuarioId);
-
-  if (!usuario) {
-    return {
-      error: {
-        codigo: "TOKEN_INVALIDO",
-        mensaje: "La sesión guardada ya no es válida.",
-      },
-    };
+    return { datos: data };
+  } catch (error) {
+    return mapearError(
+      "La sesión guardada ya no es válida.",
+      "TOKEN_INVALIDO",
+      error,
+    );
   }
-
-  return { datos: usuario };
 }
