@@ -5,6 +5,7 @@ import {
   type TipoDeReporte,
 } from "../tipos";
 import { type RespuestaApi } from "../tipos/api";
+import { subirArchivoAlServidor } from "./almacenamiento";
 import { ApiError, request } from "./http";
 import { obtenerToken } from "./sesion";
 
@@ -123,17 +124,37 @@ export async function crearReporte(
       };
     }
 
+    const fotosSubidas = await Promise.all(
+      borrador.fotos.map(async (uri, index) => {
+        console.log("SUBIR_ARCHIVO", uri);
+        const { url } = await subirArchivoAlServidor(uri, token);
+        console.log("URL_ARCHIVO", url);
+        return {
+          id: `fot-${Date.now()}-${index}`,
+          url,
+        };
+      }),
+    );
+
+    const audioUrlSubido = borrador.audioUrl
+      ? (await subirArchivoAlServidor(borrador.audioUrl, token)).url
+      : null;
+
     const payload = {
+      id: `rep-${Date.now()}`,
       tipoId: borrador.tipoId,
       descripcion: borrador.descripcion ?? undefined,
-      fotos: borrador.fotos.map((url) => ({ url, momento: "problema" })),
-      audioUrl: borrador.audioUrl ?? undefined,
-      coordenadas: borrador.coordenadas,
-      direccion: borrador.direccion,
-      zonaId: borrador.zonaId,
-      autorId: usuarioId,
+      audioUrl: audioUrlSubido,
+      fotos: fotosSubidas,
+      coordenadas: {
+        latitud: borrador.coordenadas.latitud,
+        longitud: borrador.coordenadas.longitud,
+      },
+      direccion: borrador.direccion ?? "Dirección no disponible",
       creadoEn: fechaLocalIso(),
     };
+
+    console.log("DEBUG_PAYLOAD_REPORTE", JSON.stringify(payload, null, 2));
 
     const data = await request<Reporte>("/reportes", {
       method: "POST",

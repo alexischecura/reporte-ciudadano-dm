@@ -1,4 +1,3 @@
-import * as FileSystem from "expo-file-system";
 import { Directory, File, Paths } from "expo-file-system";
 
 import { request } from "./http";
@@ -93,29 +92,19 @@ export async function guardarAudio(
 }
 
 /** Sube un archivo local a la API y devuelve la URL pública que expone el backend. */
-export async function subirArchivoAlServidor(
-  uriLocal: string,
-  token?: string,
-): Promise<{ clave: string; url: string }> {
+export async function subirArchivoAlServidor(uriLocal: string, token?: string) {
   const tokenActual = token ?? (await obtenerToken());
-  if (!tokenActual) {
+  if (!tokenActual)
     throw new Error("No hay sesión activa para subir archivos.");
-  }
 
-  const info = await FileSystem.getInfoAsync(uriLocal);
-  if (!info.exists) {
+  const archivo = new File(uriLocal);
+  if (!archivo.exists)
     throw new Error("El archivo local no existe o ya fue borrado.");
-  }
 
-  const nombre = uriLocal.split("/").pop() ?? `archivo-${Date.now()}`;
   const form = new FormData();
-  form.append("archivo", {
-    uri: uriLocal,
-    name: nombre,
-    type: mimeTypeDesdeUri(uriLocal),
-  } as any);
+  form.append("archivo", archivo as any);
 
-  return request<{ clave: string; url: string }>("/archivos", {
+  return request<{ url: string; tipo: string; bytes: number }>("/archivos", {
     method: "POST",
     token: tokenActual,
     body: form,
@@ -127,7 +116,7 @@ export async function guardarFotoYSubir(
   uriTemporal: string,
   idReporte: string,
   token?: string,
-): Promise<{ clave: string; url: string }> {
+): Promise<{ url: string; tipo: string; bytes: number }> {
   const uriPersistente = await guardarFoto(uriTemporal, idReporte);
   return subirArchivoAlServidor(uriPersistente, token);
 }
@@ -137,7 +126,7 @@ export async function guardarAudioYSubir(
   uriTemporal: string,
   idReporte: string,
   token?: string,
-): Promise<{ clave: string; url: string }> {
+): Promise<{ url: string; tipo: string; bytes: number }> {
   const uriPersistente = await guardarAudio(uriTemporal, idReporte);
   return subirArchivoAlServidor(uriPersistente, token);
 }

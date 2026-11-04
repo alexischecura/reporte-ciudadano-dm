@@ -24,10 +24,6 @@ import { SeccionFoto } from "../components/reportes/seccion-foto";
 
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
 
-const COORDS_MOCK = { latitud: -33.0089, longitud: -58.5142 };
-const DIRECCION_MOCK = "Rocamora 1240";
-const ZONA_MOCK = "zon-norte";
-
 export default function ReportarScreen() {
   const colors = useTheme();
   const { usuario } = useSesion();
@@ -68,12 +64,17 @@ export default function ReportarScreen() {
     };
   }, []);
 
-  const puedeEnviar = tipoId !== null && fotos.length >= 1 && !enviando;
+  const puedeEnviar =
+    tipoId !== null && fotos.length >= 1 && ubicacion !== null && !enviando;
 
   const enviar = async () => {
     if (!puedeEnviar || !tipoId) return;
     if (!usuario) {
       setErrorEnvio("Tenés que iniciar sesión para crear un reporte.");
+      return;
+    }
+    if (!ubicacion) {
+      setErrorEnvio("Seleccioná la ubicación del problema en el mapa.");
       return;
     }
     setEnviando(true);
@@ -85,9 +86,11 @@ export default function ReportarScreen() {
         descripcion: descripcion.trim().length > 0 ? descripcion.trim() : null,
         fotos,
         audioUrl: audioUri,
-        coordenadas: COORDS_MOCK,
-        direccion: DIRECCION_MOCK,
-        zonaId: ZONA_MOCK,
+        coordenadas: {
+          latitud: ubicacion.latitude,
+          longitud: ubicacion.longitude,
+        },
+        direccion: ubicacion.direccion,
       },
       usuario.id,
     );
@@ -137,6 +140,7 @@ export default function ReportarScreen() {
                 setFotos([]);
                 setDescripcion("");
                 setAudioUri(null);
+                setUbicacion(null);
               }}
             >
               <Text style={styles.botonTxt}>Crear otro reporte</Text>
@@ -283,7 +287,8 @@ export default function ReportarScreen() {
           </Pressable>
           {!puedeEnviar && (
             <ThemedText themeColor="textSecondary" style={styles.ayuda}>
-              Elegí el tipo de problema y agregá al menos 1 foto para enviar.
+              Elegí el tipo de problema, seleccioná la ubicación en el mapa y
+              agregá al menos 1 foto para enviar.
             </ThemedText>
           )}
         </ScrollView>
