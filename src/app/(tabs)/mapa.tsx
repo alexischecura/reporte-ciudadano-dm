@@ -1,22 +1,29 @@
 // 🔴 TODO: Codigo repetido con src/componentes/SeguimientoVecino.tsx (tarjetas y qr), refactorizar a un componente comun.
 
-import {
-  MOCK_CAMBIOS_ESTADO_CINCO_PASOS,
-  MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO,
-} from "@/mocks/cambios-de-estado.mock";
-import { MOCK_REPORTES } from "@/mocks/reportes.mock";
-import { MOCK_TIPOS_DE_REPORTE } from "@/mocks/tipos-de-reporte.mock";
-import type { CambioDeEstado, Reporte } from "@/tipos";
+import type { CambioDeEstado, Reporte, TipoDeReporte } from "@/tipos";
 import { vibracionSuave } from "@/utils/haptica";
 import { Ionicons } from "@expo/vector-icons";
-import React, { ComponentProps, useMemo, useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { ComponentProps, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
   type Region,
 } from "react-native-maps";
 import QRCode from "react-native-qrcode-svg";
+
+import {
+  listarReportes,
+  listarTiposDeReporte,
+  obtenerCambiosDeReporte,
+} from "@/servicios/reportes";
 
 const CENTRO_GUALEGUAYCHU: Region = {
   latitude: -33.0089,
@@ -53,12 +60,38 @@ const estadoConfig: Record<
   },
 };
 
-const getTipoReporte = (tipoId: string) =>
-  MOCK_TIPOS_DE_REPORTE.find((tipo) => tipo.id === tipoId) ?? null;
-
 export default function Mapa() {
-  const reportes = useMemo(() => MOCK_REPORTES, []);
+  const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [seleccionado, setSeleccionado] = useState<Reporte | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function cargarDatos() {
+      try {
+        setCargando(true);
+        setError(null);
+
+        const [reportesApi, tiposApi] = await Promise.all([
+          listarReportes(),
+          listarTiposDeReporte(),
+        ]);
+
+        setReportes(reportesApi);
+        setTipos(tiposApi);
+      } catch {
+        setError("No se pudieron cargar los reportes del mapa.");
+      } finally {
+        setCargando(false);
+      }
+    }
+
+    void cargarDatos();
+  }, []);
+
+  const getTipoReporte = (tipoId: string) =>
+    tipos.find((tipo) => tipo.id === tipoId) ?? null;
 
   return (
     <View style={styles.container}>
@@ -69,75 +102,107 @@ export default function Mapa() {
         toolbarEnabled={false}
         onPress={() => setSeleccionado(null)}
       >
-        {reportes.map((reporte) => {
-          const activo = reporte.id === seleccionado?.id;
-          const icono =
-            TIPOS[reporte.tipoId]?.icono || TIPOS["tip-desconocido"]?.icono;
-          const size = activo ? 42 : 32;
-          const color = estadoConfig[reporte.estado].color;
+        {!cargando &&
+          reportes.map((reporte) => {
+            const activo = reporte.id === seleccionado?.id;
+            const icono =
+              TIPOS[reporte.tipoId]?.icono || TIPOS["tip-desconocido"]?.icono;
+            const size = activo ? 42 : 32;
+            const color = estadoConfig[reporte.estado].color;
 
-          return (
-            <Marker
-              key={reporte.id}
-              coordinate={{
-                latitude: reporte.coordenadas.latitud,
-                longitude: reporte.coordenadas.longitud,
-              }}
-              title={reporte.codigo}
-              anchor={{ x: 0.5, y: 0.5 }}
-              onPress={(e) => {
-                e.stopPropagation();
-                setSeleccionado(reporte);
-              }}
-            >
-              <View
-                style={[
-                  styles.pin,
-                  {
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    backgroundColor: color,
-                    borderWidth: activo ? 3 : 2,
-                  },
-                ]}
+            return (
+              <Marker
+                key={reporte.id}
+                coordinate={{
+                  latitude: reporte.coordenadas.latitud,
+                  longitude: reporte.coordenadas.longitud,
+                }}
+                title={reporte.codigo}
+                anchor={{ x: 0.5, y: 0.5 }}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSeleccionado(reporte);
+                }}
               >
-                <Ionicons name={icono} size={activo ? 22 : 17} color="#fff" />
-              </View>
-            </Marker>
-          );
-        })}
+                <View
+                  style={[
+                    styles.pin,
+                    {
+                      width: size,
+                      height: size,
+                      borderRadius: size / 2,
+                      backgroundColor: color,
+                      borderWidth: activo ? 3 : 2,
+                    },
+                  ]}
+                >
+                  <Ionicons name={icono} size={activo ? 22 : 17} color="#fff" />
+                </View>
+              </Marker>
+            );
+          })}
       </MapView>
-      {seleccionado && <TarjetaReporte reporte={seleccionado} />}
+
+      {cargando ? (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="small" color="#1F6FEB" />
+          <Text style={styles.loadingText}>Cargando reportes…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {seleccionado && (
+        <TarjetaReporte
+          reporte={seleccionado}
+          tipos={tipos}
+          onObtenerHistorial={obtenerCambiosDeReporte}
+        />
+      )}
     </View>
   );
 }
 
-const TarjetaReporte = ({ reporte }: { reporte: Reporte }) => {
-  const tipo = getTipoReporte(reporte.tipoId);
+const TarjetaReporte = ({
+  reporte,
+  tipos,
+  onObtenerHistorial,
+}: {
+  reporte: Reporte;
+  tipos: TipoDeReporte[];
+  onObtenerHistorial: (reporteId: string) => Promise<CambioDeEstado[]>;
+}) => {
+  const tipo = tipos.find((item) => item.id === reporte.tipoId) ?? null;
   const estado = estadoConfig[reporte.estado];
   const [detalleVisible, setDetalleVisible] = useState(false);
-
-  const getCambiosEstadoPorReporte = (
-    reporteId: string | null,
-  ): CambioDeEstado[] => {
-    if (!reporteId) return [];
-
-    return [
-      ...MOCK_CAMBIOS_ESTADO_CINCO_PASOS,
-      ...MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO,
-    ]
-      .filter((cambio) => cambio.reporteId === reporteId)
-      .sort(
-        (a, b) =>
-          new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
-      );
-  };
-
-  const historialReporte = useMemo(
-    () => getCambiosEstadoPorReporte(reporte?.id ?? null),
-    [detalleVisible, reporte?.id],
+  const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
+    [],
   );
+
+  useEffect(() => {
+    if (!detalleVisible) {
+      setHistorialReporte([]);
+      return;
+    }
+
+    async function cargarHistorial() {
+      try {
+        const cambios = await onObtenerHistorial(reporte.id);
+        setHistorialReporte(
+          [...cambios].sort(
+            (a, b) =>
+              new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+          ),
+        );
+      } catch {
+        setHistorialReporte([]);
+      }
+    }
+
+    void cargarHistorial();
+  }, [detalleVisible, onObtenerHistorial, reporte.id]);
 
   return (
     <View style={styles.card}>
@@ -291,6 +356,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
+  },
+  loadingOverlay: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    top: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  loadingText: {
+    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  errorOverlay: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 120,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorText: {
+    color: "#991B1B",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
   },
 
   listContent: {
