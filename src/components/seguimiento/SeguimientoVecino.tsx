@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Modal,
   StyleSheet,
@@ -7,17 +8,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  MOCK_CAMBIOS_ESTADO_CINCO_PASOS,
-  MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO,
-} from "../../mocks/cambios-de-estado.mock";
-import { MOCK_REPORTES } from "../../mocks/reportes.mock";
-import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
-import type { CambioDeEstado } from "../../tipos/cambio-de-estado";
-import type { Reporte } from "../../tipos";
+  listarMisReportes,
+  listarTiposDeReporte,
+  obtenerCambiosDeReporte,
+} from "../../servicios/reportes";
+import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
 import { vibracionSuave } from "../../utils/haptica";
 
 const estadoConfig: Record<
@@ -25,24 +24,18 @@ const estadoConfig: Record<
   { label: string; color: string; backgroundColor: string }
 > = {
   recibido: { label: "Recibido", color: "#A35C00", backgroundColor: "#FFF0D9" },
-  en_revision: { label: "En revisión", color: "#00579A", backgroundColor: "#DFF3FF" },
+  en_revision: {
+    label: "En revisión",
+    color: "#00579A",
+    backgroundColor: "#DFF3FF",
+  },
   asignado: { label: "Asignado", color: "#0B6E4F", backgroundColor: "#D9F7ED" },
   resuelto: { label: "Resuelto", color: "#155724", backgroundColor: "#D4EDDA" },
-  rechazado: { label: "Rechazado", color: "#6C757D", backgroundColor: "#E9ECEF" },
-};
-
-const getTipoReporte = (tipoId: string) =>
-  MOCK_TIPOS_DE_REPORTE.find((tipo) => tipo.id === tipoId) ?? null;
-
-const getCambiosEstadoPorReporte = (reporteId: string | null): CambioDeEstado[] => {
-  if (!reporteId) return [];
-
-  return [...MOCK_CAMBIOS_ESTADO_CINCO_PASOS, ...MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO]
-    .filter((cambio) => cambio.reporteId === reporteId)
-    .sort(
-      (a, b) =>
-        new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
-    );
+  rechazado: {
+    label: "Rechazado",
+    color: "#6C757D",
+    backgroundColor: "#E9ECEF",
+  },
 };
 
 const formatFecha = (fechaIso: string): string => {
@@ -56,16 +49,66 @@ const formatFecha = (fechaIso: string): string => {
 };
 
 export default function SeguimientoVecino(): React.ReactElement {
-  const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(
-    null,
+  const [reporteSeleccionado, setReporteSeleccionado] =
+    useState<Reporte | null>(null);
+  const [misReportes, setMisReportes] = useState<Reporte[]>([]);
+  const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
+  const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
+    [],
   );
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const misReportes = useMemo(() => MOCK_REPORTES, []);
+  useEffect(() => {
+    async function cargarDatos() {
+      try {
+        setCargando(true);
+        setError(null);
 
-  const historialReporte = useMemo(
-    () => getCambiosEstadoPorReporte(reporteSeleccionado?.id ?? null),
-    [reporteSeleccionado],
-  );
+        const [reportes, tiposDisponibles] = await Promise.all([
+          listarMisReportes(),
+          listarTiposDeReporte(),
+        ]);
+
+        setMisReportes(reportes);
+        setTipos(tiposDisponibles);
+      } catch {
+        setError("No se pudieron cargar tus reclamos.");
+      } finally {
+        setCargando(false);
+      }
+    }
+
+    void cargarDatos();
+  }, []);
+
+  useEffect(() => {
+    if (!reporteSeleccionado) {
+      setHistorialReporte([]);
+      return;
+    }
+
+    const reporteActual = reporteSeleccionado;
+
+    async function cargarHistorial() {
+      try {
+        const cambios = await obtenerCambiosDeReporte(reporteActual.id);
+        setHistorialReporte(
+          [...cambios].sort(
+            (a, b) =>
+              new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+          ),
+        );
+      } catch {
+        setHistorialReporte([]);
+      }
+    }
+
+    void cargarHistorial();
+  }, [reporteSeleccionado]);
+
+  const getTipoReporte = (tipoId: string) =>
+    tipos.find((tipo) => tipo.id === tipoId) ?? null;
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
@@ -118,13 +161,27 @@ export default function SeguimientoVecino(): React.ReactElement {
         <Text style={styles.headerTitle}>Mis Reclamos</Text>
       </View>
 
-      <FlatList
-        data={misReportes}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {cargando ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="small" color="#1F6FEB" />
+          <Text style={styles.loadingText}>Cargando tus reclamos…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>
+            No pudimos cargar tu seguimiento
+          </Text>
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={misReportes}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <Modal
         visible={reporteSeleccionado !== null}
@@ -187,10 +244,7 @@ export default function SeguimientoVecino(): React.ReactElement {
               {historialReporte.length === 0 && reporteSeleccionado && (
                 <View style={styles.timelineRow}>
                   <View
-                    style={[
-                      styles.timelineDot,
-                      styles.timelineDotActive,
-                    ]}
+                    style={[styles.timelineDot, styles.timelineDotActive]}
                   />
                   <View style={styles.timelineTextWrap}>
                     <Text style={styles.timelineText}>
@@ -241,6 +295,35 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
     gap: 12,
+  },
+  loadingBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    padding: 24,
+  },
+  loadingText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
