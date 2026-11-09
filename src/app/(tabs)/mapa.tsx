@@ -3,7 +3,8 @@
 import type { CambioDeEstado, Reporte, TipoDeReporte } from "@/tipos";
 import { vibracionSuave } from "@/utils/haptica";
 import { Ionicons } from "@expo/vector-icons";
-import React, { ComponentProps, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { ComponentProps, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -67,28 +68,47 @@ export default function Mapa() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function cargarDatos() {
-      try {
-        setCargando(true);
-        setError(null);
+  // Actualizar los marcadores cada vez que se vuelve a esta pestaña.
+  // Conservamos los marcadores anteriores mientras se consulta la API.
+  useFocusEffect(
+    useCallback(() => {
+      let activo = true;
 
-        const [reportesApi, tiposApi] = await Promise.all([
-          listarReportes(),
-          listarTiposDeReporte(),
-        ]);
+      async function cargarDatos() {
+        try {
+          setError(null);
 
-        setReportes(reportesApi);
-        setTipos(tiposApi);
-      } catch {
-        setError("No se pudieron cargar los reportes del mapa.");
-      } finally {
-        setCargando(false);
+          const [reportesApi, tiposApi] = await Promise.all([
+            listarReportes(),
+            listarTiposDeReporte(),
+          ]);
+
+          if (!activo) return;
+
+          setReportes(reportesApi);
+          setTipos(tiposApi);
+          setSeleccionado((anterior) =>
+            anterior
+              ? (reportesApi.find((reporte) => reporte.id === anterior.id) ??
+                null)
+              : null,
+          );
+        } catch {
+          if (activo) {
+            setError("No se pudieron cargar los reportes del mapa.");
+          }
+        } finally {
+          if (activo) setCargando(false);
+        }
       }
-    }
 
-    void cargarDatos();
-  }, []);
+      void cargarDatos();
+
+      return () => {
+        activo = false;
+      };
+    }, []),
+  );
 
   const getTipoReporte = (tipoId: string) =>
     tipos.find((tipo) => tipo.id === tipoId) ?? null;

@@ -126,9 +126,7 @@ export async function crearReporte(
 
     const fotosSubidas = await Promise.all(
       borrador.fotos.map(async (uri, index) => {
-        console.log("SUBIR_ARCHIVO", uri);
         const { url } = await subirArchivoAlServidor(uri, token);
-        console.log("URL_ARCHIVO", url);
         return {
           id: `fot-${Date.now()}-${index}`,
           url,
@@ -153,8 +151,6 @@ export async function crearReporte(
       direccion: borrador.direccion ?? "Dirección no disponible",
       creadoEn: fechaLocalIso(),
     };
-
-    console.log("DEBUG_PAYLOAD_REPORTE", JSON.stringify(payload, null, 2));
 
     const data = await request<Reporte>("/reportes", {
       method: "POST",

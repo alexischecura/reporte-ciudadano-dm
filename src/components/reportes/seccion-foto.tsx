@@ -1,10 +1,11 @@
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
+
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { eliminarArchivo, guardarFoto } from "../../servicios/almacenamiento";
 
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
-import { eliminarArchivo, guardarFoto } from "../../servicios/almacenamiento";
+import { useState } from "react";
 import { CamaraReporte } from "./camara-reporte";
 
 interface Props {
@@ -17,37 +18,68 @@ export const MAX_FOTOS = 2;
 
 export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
   const colors = useTheme();
+
   const [camaraVisible, setCamaraVisible] = useState(false);
+  const [procesando, setProcesando] = useState(false);
+
   const llena = fotos.length >= MAX_FOTOS;
+  const deshabilitado = llena || procesando;
 
   const agregarUriTemporal = async (uriTemporal: string) => {
+    if (deshabilitado) return;
+
+    setProcesando(true);
+
     try {
       const persistente = await guardarFoto(uriTemporal, directorioBorrador);
+
       onCambiar([...fotos, persistente].slice(0, MAX_FOTOS));
     } catch {
-      Alert.alert("No se pudo guardar", "La foto no se pudo copiar al almacenamiento local.");
+      Alert.alert(
+        "No se pudo guardar",
+        "La foto no se pudo copiar al almacenamiento local.",
+      );
+    } finally {
+      setProcesando(false);
     }
   };
 
   const abrirGaleria = async () => {
-    if (llena) return;
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.7,
-    });
-    if (!res.canceled && res.assets[0]?.uri) {
-      await agregarUriTemporal(res.assets[0].uri);
+    if (deshabilitado) return;
+
+    try {
+      const resultado = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsMultipleSelection: false,
+      });
+
+      if (!resultado.canceled && resultado.assets[0]?.uri) {
+        await agregarUriTemporal(resultado.assets[0].uri);
+      }
+    } catch {
+      Alert.alert("No se pudo abrir la galería", "Intentá nuevamente.");
     }
   };
 
-  const quitar = (uri: string) => {
-    eliminarArchivo(uri);
-    onCambiar(fotos.filter((f) => f !== uri));
+  const quitar = async (uri: string) => {
+    if (procesando) return;
+
+    try {
+      await eliminarArchivo(uri);
+      onCambiar(fotos.filter((foto) => foto !== uri));
+    } catch {
+      Alert.alert(
+        "No se pudo eliminar",
+        "Intentá quitar la fotografía nuevamente.",
+      );
+    }
   };
 
   return (
     <View style={styles.cont}>
       <ThemedText style={styles.titulo}>Foto (obligatoria)</ThemedText>
+
       <ThemedText themeColor="textSecondary" style={styles.sub}>
         {fotos.length === 0
           ? "Sin foto no hay reporte."
@@ -58,27 +90,36 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
 
       <View style={styles.botones}>
         <Pressable
-          style={[styles.boton, { backgroundColor: colors.primary }, llena && styles.botonOff]}
-          disabled={llena}
-          onPress={() => setCamaraVisible(true)}>
-          <ThemedText style={[styles.botonTxt, { color: "#fff" }]}>
-            Tomar foto
-          </ThemedText>
+          accessibilityRole="button"
+          accessibilityLabel="Tomar foto"
+          disabled={deshabilitado}
+          onPress={() => setCamaraVisible(true)}
+          style={({ pressed }) => [
+            styles.boton,
+            { backgroundColor: colors.primary },
+            deshabilitado && styles.botonOff,
+            pressed && !deshabilitado && styles.presionado,
+          ]}
+        >
+          <Text style={styles.botonTxt}>Tomar foto</Text>
         </Pressable>
+
         <Pressable
-          style={[
+          accessibilityRole="button"
+          accessibilityLabel="Elegir foto de la galería"
+          disabled={deshabilitado}
+          onPress={() => void abrirGaleria()}
+          style={({ pressed }) => [
             styles.boton,
             styles.botonSec,
             { borderColor: colors.primary },
-            llena && styles.botonOff,
+            deshabilitado && styles.botonOff,
+            pressed && !deshabilitado && styles.presionado,
           ]}
-          disabled={llena}
-          onPress={() => {
-            void abrirGaleria();
-          }}>
-          <ThemedText style={styles.botonSecTxt} themeColor="primary">
+        >
+          <Text style={[styles.botonSecTxt, { color: colors.primary }]}>
             Galería
-          </ThemedText>
+          </Text>
         </Pressable>
       </View>
 
@@ -87,12 +128,22 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
           <View key={uri} style={styles.previewWrap}>
             <Image
               source={{ uri }}
-              style={[styles.preview, { backgroundColor: colors.backgroundSelected }]}
+              style={[
+                styles.preview,
+                {
+                  backgroundColor: colors.backgroundSelected,
+                },
+              ]}
+              resizeMode="cover"
             />
-            <Pressable style={styles.quitar} onPress={() => quitar(uri)}>
-              <ThemedText style={[styles.quitarTxt, { color: "#fff" }]}>
-                ✕
-              </ThemedText>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Eliminar fotografía"
+              style={styles.quitar}
+              onPress={() => void quitar(uri)}
+            >
+              <Text style={styles.quitarTxt}>✕</Text>
             </Pressable>
           </View>
         ))}
@@ -110,33 +161,107 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
 }
 
 const styles = StyleSheet.create({
-  cont: { gap: 8 },
-  titulo: { fontSize: 18, fontWeight: "700" },
-  sub: { fontSize: 14 },
-  botones: { flexDirection: "row", gap: 12 },
+  cont: {
+    width: "100%",
+    gap: 10,
+  },
+
+  titulo: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+
+  sub: {
+    fontSize: 14,
+    lineHeight: 21,
+    flexShrink: 1,
+  },
+
+  botones: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    width: "100%",
+    gap: 12,
+  },
+
   boton: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 60,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
-  botonOff: { opacity: 0.4 },
-  botonTxt: { fontSize: 17, fontWeight: "700" },
-  botonSec: { backgroundColor: "transparent", borderWidth: 1.5 },
-  botonSecTxt: { fontSize: 17, fontWeight: "700" },
-  previews: { flexDirection: "row", gap: 12, marginTop: 4 },
-  previewWrap: { position: "relative", width: 140, height: 140 },
-  preview: { width: 140, height: 140, borderRadius: 12 },
+
+  botonSec: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+  },
+
+  botonTxt: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    width: "100%",
+    flexShrink: 1,
+    includeFontPadding: true,
+  },
+
+  botonSecTxt: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    width: "100%",
+    flexShrink: 1,
+    includeFontPadding: true,
+  },
+
+  botonOff: {
+    opacity: 0.45,
+  },
+
+  presionado: {
+    opacity: 0.8,
+  },
+
+  previews: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 4,
+  },
+
+  previewWrap: {
+    position: "relative",
+    width: 140,
+    height: 140,
+  },
+
+  preview: {
+    width: 140,
+    height: 140,
+    borderRadius: 12,
+  },
+
   quitar: {
     position: "absolute",
     top: -8,
     right: -8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#111",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#111111",
     alignItems: "center",
     justifyContent: "center",
   },
-  quitarTxt: { fontWeight: "700" },
+
+  quitarTxt: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
 });

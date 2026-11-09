@@ -4,12 +4,7 @@
     "slug": "reporte-ciudadano",
     "version": "1.0.0",
     "orientation": "portrait",
-    "splash": {
-      "image": "./assets/images/splash-icon.jpg",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "icon": "./assets/images/icon.jpg",
+    "icon": "./assets/images/icon.png",
     "scheme": "reporteciudadano",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -20,28 +15,26 @@
       "package": "com.uner.reporteciudadano",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/images/android-icon-foreground.jpg",
-        "backgroundImage": "./assets/images/android-icon-background.jpg",
-        "monochromeImage": "./assets/images/android-icon-monochrome.jpg"
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "config": {
-        "googleMaps": {
-          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
-        }
-      }
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.jpg"
     },
     "plugins": [
-      [
-        "react-native-maps",
-        {
-          "androidGoogleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
-        }
-      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -53,7 +46,6 @@
       ],
       [
         "expo-camera",
-
         {
           "cameraPermission": "Permitir acceso a la cámara para fotografiar el problema reportado.",
           "recordAudioAndroid": false
@@ -71,11 +63,27 @@
           "microphonePermission": "Permitir acceso al micrófono para grabar notas de voz del reporte."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permití usar Face ID para desbloquear Reporte Ciudadano."
+        }
+      ],
+      "expo-image",
+      "expo-web-browser",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "821f7b40-f7b4-48ee-80dd-6ccbd9f5edc2"
+      }
+    },
+    "owner": "alangarciatalma"
   }
 }

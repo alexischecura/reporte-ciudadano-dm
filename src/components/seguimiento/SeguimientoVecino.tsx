@@ -8,15 +8,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
-import { SafeAreaView } from "react-native-safe-area-context";
-
 import {
   listarMisReportes,
   listarTiposDeReporte,
   obtenerCambiosDeReporte,
 } from "../../servicios/reportes";
 import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
+
+import { TextoCorregido } from "@/components/texto-corregido";
+import { useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
 
 const estadoConfig: Record<
@@ -53,34 +56,50 @@ export default function SeguimientoVecino(): React.ReactElement {
     useState<Reporte | null>(null);
   const [misReportes, setMisReportes] = useState<Reporte[]>([]);
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
+  const [alturaAyuda, setAlturaAyuda] = useState(48);
   const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
     [],
   );
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function cargarDatos() {
-      try {
-        setCargando(true);
-        setError(null);
+  useFocusEffect(
+    useCallback(() => {
+      let activo = true;
 
-        const [reportes, tiposDisponibles] = await Promise.all([
-          listarMisReportes(),
-          listarTiposDeReporte(),
-        ]);
+      async function cargarDatos() {
+        try {
+          setCargando(true);
+          setError(null);
 
-        setMisReportes(reportes);
-        setTipos(tiposDisponibles);
-      } catch {
-        setError("No se pudieron cargar tus reclamos.");
-      } finally {
-        setCargando(false);
+          const [reportes, tiposDisponibles] = await Promise.all([
+            listarMisReportes(),
+            listarTiposDeReporte(),
+          ]);
+
+          if (!activo) return;
+
+          setMisReportes(reportes);
+
+          setTipos(tiposDisponibles);
+        } catch {
+          if (activo) {
+            setError("No se pudieron cargar tus reclamos.");
+          }
+        } finally {
+          if (activo) {
+            setCargando(false);
+          }
+        }
       }
-    }
 
-    void cargarDatos();
-  }, []);
+      void cargarDatos();
+
+      return () => {
+        activo = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     if (!reporteSeleccionado) {
@@ -119,7 +138,14 @@ export default function SeguimientoVecino(): React.ReactElement {
         <View style={styles.cardHeader}>
           <View style={styles.titleWrap}>
             <Text style={styles.tipoTexto}>{tipo?.nombre ?? "Reporte"}</Text>
-            <Text style={styles.codigoTexto}>{item.codigo}</Text>
+
+            <Text
+              style={styles.codigoTexto}
+              textBreakStrategy="simple"
+              android_hyphenationFrequency="none"
+            >
+              {item.codigo}
+            </Text>
           </View>
 
           <View
@@ -130,15 +156,18 @@ export default function SeguimientoVecino(): React.ReactElement {
               },
             ]}
           >
-            <Text style={[styles.badgeText, { color: estado.color }]}>
+            <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
               {estado.label}
-            </Text>
+            </TextoCorregido>
           </View>
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Fecha</Text>
-          <Text style={styles.metaValue}>{formatFecha(item.creadoEn)}</Text>
+          <TextoCorregido style={styles.metaLabel}>Fecha</TextoCorregido>
+
+          <TextoCorregido style={styles.metaValue}>
+            {formatFecha(item.creadoEn)}
+          </TextoCorregido>
         </View>
 
         <TouchableOpacity
@@ -149,7 +178,9 @@ export default function SeguimientoVecino(): React.ReactElement {
           }}
           style={styles.primaryButton}
         >
-          <Text style={styles.primaryButtonText}>Ver Seguimiento y QR</Text>
+          <TextoCorregido style={styles.primaryButtonText}>
+            Ver Seguimiento y QR
+          </TextoCorregido>
         </TouchableOpacity>
       </View>
     );
@@ -191,12 +222,17 @@ export default function SeguimientoVecino(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{reporteSeleccionado?.codigo}</Text>
+            <Text style={styles.modalTitle}>
+              {reporteSeleccionado?.codigo}
+              <Text style={{ opacity: 0, color: "transparent" }}>
+                {" FINAL"}
+              </Text>
+            </Text>
 
             <View style={styles.qrContainer}>
               {reporteSeleccionado && (
                 <QRCode
-                  value={reporteSeleccionado.id}
+                  value={reporteSeleccionado.codigo}
                   size={200}
                   backgroundColor="white"
                   color="#111827"
@@ -204,7 +240,18 @@ export default function SeguimientoVecino(): React.ReactElement {
               )}
             </View>
 
-            <Text style={styles.helperText}>
+            <Text
+              style={[styles.helperText, { minHeight: alturaAyuda }]}
+              onTextLayout={(evento) => {
+                const alturaNecesaria = Math.ceil(
+                  evento.nativeEvent.lines.length * 22 + 4,
+                );
+
+                if (alturaNecesaria > alturaAyuda) {
+                  setAlturaAyuda(alturaNecesaria);
+                }
+              }}
+            >
               Muestre este código en ventanilla para consultar su trámite.
             </Text>
 
@@ -224,8 +271,12 @@ export default function SeguimientoVecino(): React.ReactElement {
                       />
                       <View style={styles.timelineTextWrap}>
                         <Text style={styles.timelineText}>
-                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
+                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}{" "}
+                          <Text style={{ fontSize: 1, color: "transparent" }}>
+                            {"FINAL"}
+                          </Text>
                         </Text>
+
                         {cambio.comentario ? (
                           <Text style={styles.timelineComment}>
                             {cambio.comentario}
@@ -264,7 +315,9 @@ export default function SeguimientoVecino(): React.ReactElement {
               }}
               style={styles.closeButton}
             >
-              <Text style={styles.closeButtonText}>Cerrar</Text>
+              <TextoCorregido style={styles.closeButtonText}>
+                Cerrar
+              </TextoCorregido>
             </TouchableOpacity>
           </View>
         </View>
@@ -289,6 +342,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#111827",
+    paddingRight: 4,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -344,11 +398,15 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
+    minWidth: 0,
   },
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
+    flexShrink: 1,
+    paddingRight: 4,
+    includeFontPadding: true,
   },
   codigoTexto: {
     fontSize: 12,
@@ -361,37 +419,58 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     alignSelf: "flex-start",
+    flexShrink: 0,
+    minWidth: 76,
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 3,
+    includeFontPadding: true,
   },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    gap: 12,
   },
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "#6B7280",
+    flexShrink: 1,
+    paddingRight: 4,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
     color: "#111827",
+    textAlign: "right",
+    flexShrink: 0,
+    paddingHorizontal: 4,
+    includeFontPadding: true,
   },
   primaryButton: {
     backgroundColor: "#1F6FEB",
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 52,
     alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 15,
+    textAlign: "center",
+    flexShrink: 1,
+    paddingHorizontal: 5,
+    includeFontPadding: true,
   },
   modalBackdrop: {
     flex: 1,
@@ -484,5 +563,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
 });
