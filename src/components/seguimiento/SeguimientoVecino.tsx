@@ -222,12 +222,9 @@ export default function SeguimientoVecino(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
+            <TextoCorregido style={styles.modalTitle}>
               {reporteSeleccionado?.codigo}
-              <Text style={{ opacity: 0, color: "transparent" }}>
-                {" FINAL"}
-              </Text>
-            </Text>
+            </TextoCorregido>
 
             <View style={styles.qrContainer}>
               {reporteSeleccionado && (
@@ -270,12 +267,9 @@ export default function SeguimientoVecino(): React.ReactElement {
                         ]}
                       />
                       <View style={styles.timelineTextWrap}>
-                        <Text style={styles.timelineText}>
-                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}{" "}
-                          <Text style={{ fontSize: 1, color: "transparent" }}>
-                            {"FINAL"}
-                          </Text>
-                        </Text>
+                        <TextoCorregido style={styles.timelineText}>
+                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
+                        </TextoCorregido>
 
                         {cambio.comentario ? (
                           <Text style={styles.timelineComment}>
@@ -298,10 +292,10 @@ export default function SeguimientoVecino(): React.ReactElement {
                     style={[styles.timelineDot, styles.timelineDotActive]}
                   />
                   <View style={styles.timelineTextWrap}>
-                    <Text style={styles.timelineText}>
+                    <TextoCorregido style={styles.timelineText}>
                       {estadoConfig[reporteSeleccionado.estado]?.label ??
                         reporteSeleccionado.estado}
-                    </Text>
+                    </TextoCorregido>
                   </View>
                 </View>
               )}
