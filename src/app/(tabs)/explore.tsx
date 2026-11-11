@@ -1,180 +1,164 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MOCK_REPORTES } from "@/mocks/reportes.mock";
+import { useMemo, useRef, useState } from "react";
+import { Button, View } from "react-native";
+//import { WebView } from "react-native-webview";
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+export default function Mapa() {
+  const misReportes = useMemo(() => MOCK_REPORTES, []);
+  const webViewRef = useRef(null);
+  const [mapaListo, setMapaListo] = useState(false);
+  const [buscando, setBuscando] = useState(false);
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+  async function mostrarMiUbicacion() {
+    // setBuscando(true);
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+    //     try {
+    //       const { status } = await Location.requestForegroundPermissionsAsync();
 
-  return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    //       if (status !== "granted") {
+    //         Alert.alert(
+    //           "Permiso necesario",
+    //           "Permití el acceso a la ubicación para mostrarla en el mapa.",
+    //         );
+    //         return;
+    //       }
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+    //       const ubicacion = await Location.getCurrentPositionAsync({
+    //         accuracy: Location.Accuracy.High,
+    //       });
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+    //       const { latitude, longitude } = ubicacion.coords;
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
+    //       webViewRef.current?.injectJavaScript(`
+    //       window.mostrarUbicacion(${latitude}, ${longitude});
+    //       true;
+    //     `);
+    //     } catch {
+    //       Alert.alert(
+    //         "No se pudo obtener la ubicación",
+    //         "Verificá que la ubicación del celular esté activada.",
+    //       );
+    //     } finally {
+    //       setBuscando(false);
+    //     }
+    //   }
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        />
 
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
-  );
+        <style>
+          html, body, #map {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+          }
+        </style>
+      </head>
+
+      <body>
+        <div id="map"></div>
+
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+        <script>
+        const map = L.map("map").setView(
+          [-33.0094, -58.5172],
+          13
+        );
+
+        L.tileLayer(
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+          }
+        ).addTo(map);
+
+        let marcadorUsuario;
+
+        window.mostrarUbicacion = function (latitud, longitud) {
+          const coordenadas = [latitud, longitud];
+
+          if (marcadorUsuario) {
+            marcadorUsuario.setLatLng(coordenadas);
+          } else {
+            marcadorUsuario = L.circleMarker(coordenadas, {
+              radius: 9,
+              color: "#ffffff",
+              weight: 3,
+              fillColor: "#2563eb",
+              fillOpacity: 1,
+            })
+              .addTo(map)
+              .bindPopup("Tu ubicación");
+          }
+
+          map.setView(coordenadas, 16);
+        };
+
+        const tipoReporte = {
+            "tip-bache": "Bache",
+            "tip-luminaria": "Luminaria",
+            "tip-arbol": "Árbol",
+            "tip-basura": "Basura",
+            "tip-vereda": "Vereda",
+          };
+
+          const reportes = ${JSON.stringify(misReportes).replace(/</g, "\\u003c")};
+
+          reportes.forEach((reporte) => {
+            const etiqueta = document.createElement("button");
+            etiqueta.innerText = "Ver reporte " + reporte.codigo + " - " + tipoReporte[reporte.tipoId];
+
+            etiqueta.onclick = () => {
+
+            };
+
+            L.marker([
+              Number(reporte.coordenadas.latitud),
+              Number(reporte.coordenadas.longitud)
+              ])
+              .addTo(map)
+              .bindPopup(etiqueta);
+          });
+
+          window.ReactNativeWebView.postMessage("mapa-listo");
+          </script>
+      </body>
+    </html>
+    `;
+
+    return (
+      <View style={{ flex: 1 }}>
+        {/* <WebView
+        ref={webViewRef}
+        style={{ flex: 1, marginTop: 40 }}
+        originWhitelist={["*"]}
+        source={{ html }}
+        javaScriptEnabled
+        domStorageEnabled
+        onMessage={(event) => {
+          if (event.nativeEvent.data === "mapa-listo") {
+            setMapaListo(true);
+          }
+        }}
+      /> */}
+
+        <Button
+          title={buscando ? "Buscando ubicación..." : "Mi ubicación"}
+          onPress={mostrarMiUbicacion}
+          disabled={!mapaListo || buscando}
+        />
+      </View>
+    );
+  }
 }
-
-const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
-});

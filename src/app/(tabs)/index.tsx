@@ -1,83 +1,48 @@
-import * as Device from "expo-device";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { Platform, Pressable, StyleSheet, Text } from "react-native";
-
-import { AnimatedIcon } from "@/components/animated-icon";
-import { HintRow } from "@/components/hint-row";
-import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { WebBadge } from "@/components/web-badge";
 import { useSesion } from "@/contexts/sesion-context";
 import { Link } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-function getDevMenuHint() {
-  if (Platform.OS === "web") {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === "android" ? "cmd+m (or ctrl+m)" : "cmd+d";
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
 
 export default function HomeScreen() {
   const { usuario, logout } = useSesion();
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedText>
-          {usuario ? `Hola, ${usuario.nombre}` : "Sin sesión"}
-        </ThemedText>
-        <ThemedText
-          onPress={logout}
-          style={{ textDecorationLine: "underline" }}
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          Cerrar sesión
-        </ThemedText>
+          <View style={styles.header}>
+            <Text style={styles.greeting}>
+              {usuario ? `Hola, ${usuario.nombre}` : "Bienvenido"}
+            </Text>
 
-        {/* Temporal de Juanchi. TODO(Alan): quitar al integrar navegación final. */}
-        <Link href="/reportar" asChild>
-          <Pressable style={styles.reportarBtn}>
-            <Text style={styles.reportarTxt}>Crear reporte</Text>
-          </Pressable>
-        </Link>
+            <Pressable
+              onPress={logout}
+              accessibilityRole="button"
+              style={styles.logoutButton}
+            >
+              <Text style={styles.logoutText}>Cerrar sesión</Text>
+            </Pressable>
+          </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/(tabs)/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+          <View style={styles.actions}>
+            <Link href="/seguridad" asChild>
+              <Pressable style={styles.actionButton} accessibilityRole="button">
+                <Text style={styles.actionText}>Seguridad de la cuenta</Text>
+              </Pressable>
+            </Link>
 
-        {Platform.OS === "web" && <WebBadge />}
+            <Link href="/reportar" asChild>
+              <Pressable style={styles.actionButton} accessibilityRole="button">
+                <Text style={styles.actionText}>Crear reporte</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -86,44 +51,70 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    flexDirection: "row",
   },
+
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: "center",
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
+
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 36,
+    gap: 28,
+  },
+
+  header: {
+    width: "100%",
     alignItems: "center",
+    gap: 12,
+  },
+
+  greeting: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    flexShrink: 1,
+    color: "#202020",
+  },
+
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    minHeight: 44,
     justifyContent: "center",
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
+
+  logoutText: {
+    fontSize: 16,
+    color: "#208AEF",
     textAlign: "center",
   },
-  code: {
-    textTransform: "uppercase",
+
+  actions: {
+    width: "100%",
+    gap: 16,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: "stretch",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-  reportarBtn: {
-    backgroundColor: "#208AEF",
+
+  actionButton: {
+    width: "100%",
+    minHeight: 64,
     borderRadius: 12,
+    backgroundColor: "#208AEF",
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignSelf: "stretch",
     alignItems: "center",
+    justifyContent: "center",
   },
-  reportarTxt: { color: "#fff", fontSize: 17, fontWeight: "700" },
+
+  actionText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    width: "100%",
+  },
 });

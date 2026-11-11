@@ -1,24 +1,84 @@
-import { MOCK_REPORTES } from "../mocks/reportes.mock";
-import { MOCK_TIPOS_DE_REPORTE } from "../mocks/tipos-de-reporte.mock";
-import type { BorradorReporte, Reporte, TipoDeReporte } from "../tipos";
+import {
+  type BorradorReporte,
+  type CambioDeEstado,
+  type Reporte,
+  type TipoDeReporte,
+} from "../tipos";
 import { type RespuestaApi } from "../tipos/api";
+import { subirArchivoAlServidor } from "./almacenamiento";
+import { ApiError, request } from "./http";
+import { obtenerToken } from "./sesion";
 
-/**
- * Capa de servicios — Módulo del Vecino (Juanchi).
- * Las pantallas NUNCA importan mocks directamente, todo pasa por acá.
- * Funciones asíncronas desde el día 1: hoy devuelven mocks, mañana `fetch`
- * a la API de cátedra (`{ datos, meta }` / `{ error: { codigo, mensaje } }`).
- *
- * TODO(Alexis): conectar `crearReporte()` a SQLite + cola offline
- * (`sincronizado: false`) + `expo-network` para reintento.
- */
+function mapearError(
+  mensajeDefault: string,
+  codigoDefault: string,
+  error: unknown,
+): RespuestaApi<never> {
+  if (error instanceof ApiError) {
+    return {
+      error: {
+        codigo: error.code || codigoDefault,
+        mensaje: error.message || mensajeDefault,
+      },
+    };
+  }
 
-/** Lista los 8 tipos de problema (bache, luminaria, basura, ...). */
-export async function listarTiposDeReporte(): Promise<TipoDeReporte[]> {
-  return MOCK_TIPOS_DE_REPORTE;
+  return {
+    error: {
+      codigo: codigoDefault,
+      mensaje: mensajeDefault,
+    },
+  };
 }
 
-/** Fecha ISO 8601 con offset local (ej. 2026-09-14T10:22:00-03:00). Nunca Date ni timestamp. */
+function construirQuery(
+  query?: Record<string, string | number | boolean | undefined>,
+) {
+  if (!query) return "";
+
+  const search = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+
+  const queryString = search.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+export async function listarTiposDeReporte(): Promise<TipoDeReporte[]> {
+  return request<TipoDeReporte[]>("/tipos-de-reporte");
+}
+
+export async function listarReportes(
+  query?: Record<string, string | number | boolean | undefined>,
+): Promise<Reporte[]> {
+  return request<Reporte[]>(`/reportes${construirQuery(query)}`);
+}
+
+export async function listarMisReportes(): Promise<Reporte[]> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa para ver tus reportes.");
+  }
+
+  return request<Reporte[]>("/yo/reportes", {
+    method: "GET",
+    token,
+  });
+}
+
+export async function obtenerReporte(id: string): Promise<Reporte> {
+  return request<Reporte>(`/reportes/${id}`);
+}
+
+export async function obtenerCambiosDeReporte(
+  reporteId: string,
+): Promise<CambioDeEstado[]> {
+  return request<CambioDeEstado[]>(`/reportes/${reporteId}/cambios`);
+}
+
 export function fechaLocalIso(fecha = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const offMin = -fecha.getTimezoneOffset();
@@ -31,10 +91,6 @@ export function fechaLocalIso(fecha = new Date()): string {
   );
 }
 
-/**
- * Crea un reporte a partir del borrador.
- * Valida la regla PRD: al menos 1 foto (error FOTO_REQUERIDA si no).
- */
 export async function crearReporte(
   borrador: BorradorReporte,
   usuarioId: string,
@@ -57,37 +113,62 @@ export async function crearReporte(
     };
   }
 
-  const numero = Math.floor(10000 + Math.random() * 89999);
-  const ahora = fechaLocalIso();
+  try {
+    const token = await obtenerToken();
+    if (!token) {
+      return {
+        error: {
+          codigo: "NO_AUTENTICADO",
+          mensaje: "Tu sesión expiró. Iniciá sesión nuevamente.",
+        },
+      };
+    }
 
-  const reporte: Reporte = {
-    id: `rep-borrador-${Date.now()}`,
-    codigo: `GCHU-2026-${numero}`,
-    tipoId: borrador.tipoId,
-    descripcion: borrador.descripcion,
-    audioUrl: borrador.audioUrl,
-    fotos: borrador.fotos.map((url, i) => ({
-      id: `fot-local-${Date.now()}-${i}`,
-      url,
-      momento: "problema" as const,
-    })),
-    coordenadas: borrador.coordenadas,
-    direccion: borrador.direccion,
-    zonaId: borrador.zonaId,
-    estado: "recibido",
-    autorId: usuarioId,
-    cuadrillaId: null,
-    duplicadoDe: null,
-    adhesiones: 0,
-    creadoEn: ahora,
-    // Alexis lo persistirá en SQLite como `false` hasta sincronizar.
-    sincronizado: false,
-  };
+    const fotosSubidas = await Promise.all(
+      borrador.fotos.map(async (uri, index) => {
+        const { url } = await subirArchivoAlServidor(uri, token);
+        return {
+          id: `fot-${Date.now()}-${index}`,
+          url,
+        };
+      }),
+    );
 
-  return { datos: reporte };
+    const audioUrlSubido = borrador.audioUrl
+      ? (await subirArchivoAlServidor(borrador.audioUrl, token)).url
+      : null;
+
+    const payload = {
+      id: `rep-${Date.now()}`,
+      tipoId: borrador.tipoId,
+      descripcion: borrador.descripcion ?? undefined,
+      audioUrl: audioUrlSubido,
+      fotos: fotosSubidas,
+      coordenadas: {
+        latitud: borrador.coordenadas.latitud,
+        longitud: borrador.coordenadas.longitud,
+      },
+      direccion: borrador.direccion ?? "Dirección no disponible",
+      creadoEn: fechaLocalIso(),
+    };
+
+    const data = await request<Reporte>("/reportes", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    });
+
+    return { datos: data };
+  } catch (error) {
+    return mapearError(
+      "No se pudo crear el reporte.",
+      "REPORTE_NO_CREADO",
+      error,
+    );
+  }
 }
 
-/** Solo para previsualizar casos feos en desarrollo (no usar desde pantallas finales). */
 export async function listarReportesMock(): Promise<Reporte[]> {
+  const { MOCK_REPORTES } = await import("../mocks/reportes.mock");
   return MOCK_REPORTES;
 }

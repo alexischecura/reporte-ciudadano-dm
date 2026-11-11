@@ -17,5 +17,4 @@ export interface BorradorReporte {
   audioUrl: string | null;
   coordenadas: Coordenadas;
   direccion: string;
-  zonaId: string;
 }

@@ -19,16 +19,20 @@ export default function LoginScreen() {
   const [enviando, setEnviando] = useState(false);
 
   async function handleLogin() {
+    if (enviando) return;
     setError(null);
-    setEnviando(true);
-
-    const resultado = await login({ email, password });
-
-    setEnviando(false);
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
+    if (!email.trim() || !password) {
+      setError("Ingresá tu email y contraseña.");
       return;
+    }
+    setEnviando(true);
+    try {
+      const resultado = await login({ email: email.trim(), password });
+      if (!resultado.ok) setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
+    } catch {
+      setError("Ocurrió un error inesperado.");
+    } finally {
+      setEnviando(false);
     }
   }
 
