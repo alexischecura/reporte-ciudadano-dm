@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,8 @@ import {
 import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
 import type { Reporte, TipoDeReporte } from "../tipos";
 
+import { ReportesCercanos } from "@/components/reportes/reportes-cercanos";
+import { useReportesCercanos } from "@/hooks/use-reportes-cercanos";
 import SelectorUbicacion from "@/components/reportes/mapa-reporte";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -43,6 +46,9 @@ export default function ReportarScreen() {
 
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  const [adhiriendo, setAdhiriendo] = useState(false);
+  const [esAdhesion, setEsAdhesion] = useState(false);
+  const cercanos = useReportesCercanos(ubicacion ? { latitud: ubicacion.latitude, longitud: ubicacion.longitude } : null);
   const [exito, setExito] = useState<Reporte | null>(null);
 
   useEffect(() => {
@@ -65,9 +71,9 @@ export default function ReportarScreen() {
   }, []);
 
   const puedeEnviar =
-    tipoId !== null && fotos.length >= 1 && ubicacion !== null && !enviando;
+    tipoId !== null && fotos.length >= 1 && ubicacion !== null && !enviando && !adhiriendo && !cercanos.cargando;
 
-  const enviar = async () => {
+  const enviarReporte = async () => {
     if (!puedeEnviar || !tipoId) return;
     if (!usuario) {
       setErrorEnvio("Tenés que iniciar sesión para crear un reporte.");
@@ -110,6 +116,24 @@ export default function ReportarScreen() {
     }
   };
 
+  const enviar = () => {
+    if (!puedeEnviar) return;
+    if (cercanos.reportes.length || cercanos.error) {
+      Alert.alert(
+        cercanos.error ? "No pudimos verificar si ya está reportado" : "¿Se trata de otro problema?",
+        cercanos.error
+          ? "Podés reintentar la búsqueda de reportes cercanos antes de enviar o continuar con tu reporte."
+          : "Hay reclamos abiertos a 50 m o menos. Revisalos y sumate si es el mismo problema.",
+        [
+          { text: "Volver a revisar", style: "cancel" },
+          { text: "Enviar nuevo reporte", onPress: () => void enviarReporte() },
+        ],
+      );
+      return;
+    }
+    void enviarReporte();
+  };
+
   const reintentarTipos = async () => {
     try {
       setCargandoTipos(true);
@@ -129,7 +153,7 @@ export default function ReportarScreen() {
           <View style={styles.exito}>
             <ThemedText style={styles.exitoTitulo}>¡Listo!</ThemedText>
             <ThemedText themeColor="textSecondary" style={styles.exitoTxt}>
-              Tu reporte se guardó.
+              {esAdhesion ? "Ya estás sumado a este reclamo." : "Tu reporte se guardó."}
             </ThemedText>
             <ThemedText themeColor="primary" style={styles.codigo}>
               {exito.codigo}
@@ -141,6 +165,7 @@ export default function ReportarScreen() {
               style={[styles.boton, { backgroundColor: colors.primary }]}
               onPress={() => {
                 setExito(null);
+                setEsAdhesion(false);
                 setTipoId(null);
                 setFotos([]);
                 setDescripcion("");
@@ -162,6 +187,7 @@ export default function ReportarScreen() {
         <ScrollView
           contentContainerStyle={styles.cont}
           keyboardShouldPersistTaps="handled"
+          pointerEvents={enviando || adhiriendo ? "none" : "auto"}
         >
           <ThemedText style={styles.titulo}>Nuevo reporte</ThemedText>
           <Pressable
@@ -233,16 +259,27 @@ export default function ReportarScreen() {
 
           <View style={styles.bloque}>
             <ThemedText style={styles.seccion}>¿Dónde?</ThemedText>
-            <SelectorUbicacion onLocationSelect={setUbicacion} />
+            <SelectorUbicacion
+              reportesCercanos={cercanos.reportes}
+              onSelectionStart={() => setUbicacion(null)}
+              onLocationSelect={setUbicacion}
+            />
 
             {ubicacion && (
-              <Text>
-                Dirección: {ubicacion.direccion}
-                {"\n"}
-                Latitud: {ubicacion.latitude}
-                {"\n"}
-                Longitud: {ubicacion.longitude}
-              </Text>
+              <ReportesCercanos
+                key={`${ubicacion.latitude}:${ubicacion.longitude}`}
+                reportes={cercanos.reportes}
+                tipos={tipos}
+                coordenadas={{ latitud: ubicacion.latitude, longitud: ubicacion.longitude }}
+                cargando={cercanos.cargando}
+                error={cercanos.error}
+                onReintentar={cercanos.reintentar}
+                onOcupado={setAdhiriendo}
+                onAdherido={(reporte) => {
+                  setEsAdhesion(true);
+                  setExito(reporte);
+                }}
+              />
             )}
           </View>
 
@@ -291,7 +328,7 @@ export default function ReportarScreen() {
               <Text style={styles.botonTxt}>ENVIAR</Text>
             )}
           </Pressable>
-          {!puedeEnviar && (
+          {!puedeEnviar && !cercanos.cargando && (
             <ThemedText themeColor="textSecondary" style={styles.ayuda}>
               Elegí el tipo de problema, seleccioná la ubicación en el mapa y
               agregá al menos 1 foto para enviar.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -17,7 +17,6 @@ import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
 
 import { TextoCorregido } from "@/components/texto-corregido";
 import { useFocusEffect } from "expo-router";
-import { useCallback } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
@@ -102,16 +101,16 @@ export default function SeguimientoVecino(): React.ReactElement {
   );
 
   useEffect(() => {
-    if (!reporteSeleccionado) {
-      setHistorialReporte([]);
-      return;
-    }
+    if (!reporteSeleccionado) return;
+
+    let activo = true;
 
     const reporteActual = reporteSeleccionado;
 
     async function cargarHistorial() {
       try {
         const cambios = await obtenerCambiosDeReporte(reporteActual.id);
+        if (!activo) return;
         setHistorialReporte(
           [...cambios].sort(
             (a, b) =>
@@ -119,11 +118,14 @@ export default function SeguimientoVecino(): React.ReactElement {
           ),
         );
       } catch {
-        setHistorialReporte([]);
+        if (activo) setHistorialReporte([]);
       }
     }
 
     void cargarHistorial();
+    return () => {
+      activo = false;
+    };
   }, [reporteSeleccionado]);
 
   const getTipoReporte = (tipoId: string) =>
@@ -174,6 +176,7 @@ export default function SeguimientoVecino(): React.ReactElement {
           activeOpacity={0.85}
           onPress={async () => {
             await vibracionSuave();
+            setHistorialReporte([]);
             setReporteSeleccionado(item);
           }}
           style={styles.primaryButton}

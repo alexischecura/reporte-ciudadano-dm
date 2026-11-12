@@ -53,54 +53,73 @@ interface SesionContextType {
 
 const SesionContext = createContext<SesionContextType | undefined>(undefined);
 
+interface SesionRestaurada {
+  usuario: Usuario | null;
+  fase: FaseSesion;
+  error: string | null;
+  biometriaActiva: boolean;
+}
+
+async function cargarSesionGuardada(): Promise<SesionRestaurada> {
+  const sinUsuario = { usuario: null, error: null, biometriaActiva: false };
+  try {
+    const token = await obtenerToken();
+    if (!token) return { ...sinUsuario, fase: "anonimo" };
+
+    const respuesta = await validarToken(token);
+    if (esError(respuesta)) {
+      if (respuesta.error.codigo === "NO_AUTENTICADO") {
+        await borrarToken();
+        return { ...sinUsuario, fase: "anonimo" };
+      }
+      // Conservar el token ante fallos de red o del servidor.
+      return { ...sinUsuario, fase: "sin_conexion", error: respuesta.error.mensaje };
+    }
+
+    const biometriaActiva = await obtenerPreferenciaBiometria(respuesta.datos.id);
+    return {
+      usuario: respuesta.datos,
+      fase: biometriaActiva ? "bloqueado" : "autenticado",
+      error: null,
+      biometriaActiva,
+    };
+  } catch {
+    return {
+      ...sinUsuario,
+      fase: "sin_conexion",
+      error: "No pudimos recuperar la sesión. Probá nuevamente.",
+    };
+  }
+}
+
 export function SesionProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [fase, setFase] = useState<FaseSesion>("cargando");
   const [errorSesion, setErrorSesion] = useState<string | null>(null);
   const [biometriaActiva, setBiometriaActiva] = useState(false);
 
-  const restaurar = useCallback(async () => {
-    setFase("cargando");
-    setErrorSesion(null);
-    try {
-      const token = await obtenerToken();
-      if (!token) {
-        setUsuario(null);
-        setFase("anonimo");
-        return;
-      }
-
-      const respuesta = await validarToken(token);
-      if (esError(respuesta)) {
-        if (respuesta.error.codigo === "NO_AUTENTICADO") {
-          await borrarToken();
-          setUsuario(null);
-          setBiometriaActiva(false);
-          setFase("anonimo");
-          return;
-        }
-        // No destruir un token válido por caída de wifi, 500 o timeout.
-        setUsuario(null);
-        setErrorSesion(respuesta.error.mensaje);
-        setFase("sin_conexion");
-        return;
-      }
-
-      const perfil = respuesta.datos;
-      setUsuario(perfil);
-      const preferencia = await obtenerPreferenciaBiometria(perfil.id);
-      setBiometriaActiva(preferencia);
-      setFase(preferencia ? "bloqueado" : "autenticado");
-    } catch {
-      setUsuario(null);
-      setErrorSesion("No pudimos recuperar la sesión. Probá nuevamente.");
-      setFase("sin_conexion");
-    }
+  const aplicarRestauracion = useCallback((sesion: SesionRestaurada) => {
+    setUsuario(sesion.usuario);
+    setFase(sesion.fase);
+    setErrorSesion(sesion.error);
+    setBiometriaActiva(sesion.biometriaActiva);
   }, []);
 
+  const reintentarRestauracion = async () => {
+    setFase("cargando");
+    setErrorSesion(null);
+    aplicarRestauracion(await cargarSesionGuardada());
+  };
+
   useEffect(() => {
-    void restaurar();
-  }, [restaurar]);
+    let activo = true;
+    void cargarSesionGuardada().then((sesion) => {
+      if (activo) aplicarRestauracion(sesion);
+    });
+    return () => {
+      activo = false;
+    };
+  }, [aplicarRestauracion]);
 
   async function completarAcceso(sesion: SesionUsuario): Promise<ResultadoAcceso> {
     try {
@@ -198,7 +217,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
         registrar,
         logout,
         usarOtraCuenta,
-        reintentarRestauracion: restaurar,
+        reintentarRestauracion,
         desbloquear,
         cambiarBiometria,
       }}

@@ -52,7 +52,7 @@ const estadoConfig: Record<
   },
 };
 
-const filtroLabels: Array<{ value: FiltroEstado; label: string }> = [
+const filtroLabels: { value: FiltroEstado; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "pendiente", label: "Pendiente" },
   { value: "en_progreso", label: "En Progreso" },

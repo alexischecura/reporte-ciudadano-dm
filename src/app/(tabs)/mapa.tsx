@@ -1,15 +1,19 @@
 // 🔴 TODO: Codigo repetido con src/componentes/SeguimientoVecino.tsx (tarjetas y qr), refactorizar a un componente comun.
 
+import * as Location from "expo-location";
+import { FiltrosMapa } from "@/components/reportes/filtros-mapa";
+import { filtrarReportesMapa, RADIO_EXPLORACION_METROS } from "@/utils/ubicacion";
 import { useSesion } from "@/contexts/sesion-context";
-import type { CambioDeEstado, Reporte, TipoDeReporte } from "@/tipos";
+import type { CambioDeEstado, Coordenadas, EstadoReporte, Reporte, TipoDeReporte } from "@/tipos";
 import { vibracionSuave } from "@/utils/haptica";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import React, { ComponentProps, useCallback, useEffect, useState } from "react";
+import React, { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +22,7 @@ import {
 } from "react-native";
 import MapView, {
   Marker,
+  Circle,
   PROVIDER_GOOGLE,
   type Region,
 } from "react-native-maps";
@@ -25,7 +30,7 @@ import QRCode from "react-native-qrcode-svg";
 
 import {
   adherirseAReporte,
-  listarReportes,
+  listarReportesDelMapa,
   listarTiposDeReporte,
   obtenerCambiosDeReporte,
   obtenerEstadoAdhesionReporte,
@@ -74,59 +79,113 @@ export default function Mapa() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Actualizar los marcadores cada vez que se vuelve a esta pestaña.
-  // Conservamos los marcadores anteriores mientras se consulta la API.
-  useFocusEffect(
-    useCallback(() => {
-      let activo = true;
+  const mapRef = useRef<MapView>(null);
+  const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoReporte | null>(null);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [cercaDe, setCercaDe] = useState<Coordenadas | null>(null);
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [errorUbicacion, setErrorUbicacion] = useState<string | null>(null);
+  const [permisoBloqueado, setPermisoBloqueado] = useState(false);
+  const visibles = filtrarReportesMapa(reportes, tipoFiltro, estadoFiltro, cercaDe);
 
-      async function cargarDatos() {
-        try {
-          setError(null);
-
-          const [reportesApi, tiposApi] = await Promise.all([
-            listarReportes(),
-            listarTiposDeReporte(),
-          ]);
-
-          if (!activo) return;
-
-          setReportes(reportesApi);
-          setTipos(tiposApi);
-          setSeleccionado((anterior) =>
-            anterior
-              ? (reportesApi.find((reporte) => reporte.id === anterior.id) ??
-                null)
-              : null,
-          );
-        } catch {
-          if (activo) {
-            setError("No se pudieron cargar los reportes del mapa.");
-          }
-        } finally {
-          if (activo) setCargando(false);
-        }
+  const mostrarCercanos = async () => {
+    setErrorUbicacion(null);
+    setPermisoBloqueado(false);
+    setSeleccionado(null);
+    if (cercaDe) {
+      setCercaDe(null);
+      return;
+    }
+    setBuscandoUbicacion(true);
+    try {
+      const permiso = await Location.requestForegroundPermissionsAsync();
+      if (!permiso.granted) {
+        setPermisoBloqueado(!permiso.canAskAgain);
+        setErrorUbicacion("Permití el acceso a la ubicación para ver reportes cerca de vos. Podés seguir explorando todos los reportes.");
+        return;
       }
+      const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCercaDe({ latitud: coords.latitude, longitud: coords.longitude });
+      mapRef.current?.animateToRegion({
+        latitude: coords.latitude, longitude: coords.longitude,
+        latitudeDelta: 0.025, longitudeDelta: 0.025,
+      }, 350);
+    } catch {
+      setErrorUbicacion("No pudimos obtener tu ubicación. Revisá que el GPS esté activado e intentá nuevamente.");
+    } finally {
+      setBuscandoUbicacion(false);
+    }
+  };
 
-      void cargarDatos();
+  const cargarDatos = useCallback(async (estaActivo: () => boolean = () => true) => {
+    try {
+      setError(null);
+      setCargando(true);
+      const [reportesApi, tiposApi] = await Promise.all([
+        listarReportesDelMapa(), listarTiposDeReporte(),
+      ]);
+      if (!estaActivo()) return;
+      setReportes(reportesApi);
+      setTipos(tiposApi);
+      setSeleccionado((anterior) => anterior
+        ? (reportesApi.find((reporte) => reporte.id === anterior.id) ?? null)
+        : null);
+    } catch {
+      if (estaActivo()) setError("No se pudieron cargar los reportes del mapa.");
+    } finally {
+      if (estaActivo()) setCargando(false);
+    }
+  }, []);
 
-      return () => {
-        activo = false;
-      };
-    }, []),
-  );
+  // Actualizar los marcadores al volver a esta pestaña.
+  useFocusEffect(useCallback(() => {
+    let activo = true;
+    void cargarDatos(() => activo);
+    return () => { activo = false; };
+  }, [cargarDatos]));
 
   return (
     <View style={styles.container}>
+      <FiltrosMapa
+        tipos={tipos}
+        tipoId={tipoFiltro}
+        estado={estadoFiltro}
+        abiertos={filtrosAbiertos}
+        cerca={cercaDe !== null}
+        buscandoUbicacion={buscandoUbicacion}
+        errorUbicacion={errorUbicacion}
+        permisoBloqueado={permisoBloqueado}
+        cargando={cargando}
+        sinResultados={!cargando && !error && !visibles.length}
+        cantidad={visibles.length}
+        onTipo={(tipoId) => { setTipoFiltro(tipoId); setSeleccionado(null); }}
+        onEstado={(estado) => { setEstadoFiltro(estado); setSeleccionado(null); }}
+        onAlternar={() => setFiltrosAbiertos(!filtrosAbiertos)}
+        onCercania={() => void mostrarCercanos()}
+        onLimpiar={() => {
+          setTipoFiltro(null);
+          setEstadoFiltro(null);
+          setCercaDe(null);
+          setSeleccionado(null);
+          setErrorUbicacion(null);
+          setPermisoBloqueado(false);
+        }}
+      />
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={CENTRO_GUALEGUAYCHU}
         toolbarEnabled={false}
         onPress={() => setSeleccionado(null)}
       >
+        {cercaDe && <>
+          <Circle center={{ latitude: cercaDe.latitud, longitude: cercaDe.longitud }} radius={RADIO_EXPLORACION_METROS} strokeColor="#208AEF" fillColor="rgba(32,138,239,0.08)" />
+          <Marker coordinate={{ latitude: cercaDe.latitud, longitude: cercaDe.longitud }} title="Tu ubicación" pinColor="#208AEF" />
+        </>}
         {!cargando &&
-          reportes.map((reporte) => {
+          visibles.map((reporte) => {
             const activo = reporte.id === seleccionado?.id;
             const icono =
               TIPOS[reporte.tipoId]?.icono || TIPOS["tip-desconocido"]?.icono;
@@ -166,19 +225,22 @@ export default function Mapa() {
           })}
       </MapView>
 
-      {cargando ? (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color="#1F6FEB" />
-          <Text style={styles.loadingText}>Cargando reportes…</Text>
-        </View>
-      ) : error ? (
+      {error && (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText}>{error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.limpiarFiltros}
+            onPress={() => void cargarDatos()}
+          >
+            <Text style={styles.filtroTexto}>Reintentar</Text>
+          </Pressable>
         </View>
-      ) : null}
+      )}
 
       {seleccionado && (
         <TarjetaReporte
+          key={seleccionado.id}
           reporte={seleccionado}
           tipos={tipos}
           onObtenerDetalle={obtenerReporte}
@@ -590,10 +652,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  map: {
-    width: "100%",
-    height: "100%",
-  },
+  map: { flex: 1 },
+  filtroTexto: { color: "#1F6FEB", fontSize: 14, fontWeight: "600" },
+  limpiarFiltros: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
   pin: {
     alignItems: "center",
     justifyContent: "center",
@@ -603,24 +664,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
-  },
-  loadingOverlay: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    top: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
   },
   loadingText: {
     color: "#1F2937",
