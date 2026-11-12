@@ -195,7 +195,10 @@ export default function SeguimientoVecino(): React.ReactElement {
       {cargando ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="small" color="#1F6FEB" />
-          <Text style={styles.loadingText}>Cargando tus reclamos…</Text>
+
+          <TextoCorregido style={styles.loadingText}>
+            Cargando tus reclamos
+          </TextoCorregido>
         </View>
       ) : error ? (
         <View style={styles.emptyState}>
