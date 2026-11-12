@@ -4,27 +4,10 @@ import { ThemedView } from "@/components/themed-view";
 import { useSesion } from "@/contexts/sesion-context";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ListaReportesOperador from "@/components/operador/ListaReportesOperador";
 
 export default function OperadorScreen() {
-  const { usuario, logout } = useSesion();
-
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title">Bandeja del Operador</ThemedText>
-        <ThemedText>
-          Bienvenido, {usuario?.nombre}. Pantalla real pendiente de integrar
-          (Frank).
-        </ThemedText>
-        <Link href="/seguridad" asChild>
-          <ThemedText style={styles.link}>Seguridad de la cuenta</ThemedText>
-        </Link>
-        <ThemedText onPress={logout} style={styles.link}>
-          Cerrar sesión
-        </ThemedText>
-      </SafeAreaView>
-    </ThemedView>
-  );
+  return <ListaReportesOperador />;
 }
 
 const styles = StyleSheet.create({
