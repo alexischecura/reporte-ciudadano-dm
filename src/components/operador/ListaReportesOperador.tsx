@@ -1,3 +1,5 @@
+import * as ImagePicker from "expo-image-picker";
+
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -6,20 +8,19 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
 
+import { TextoCorregido } from "@/components/texto-corregido";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MOCK_CUADRILLAS } from "../../mocks/cuadrillas.mock";
 import { MOCK_REPORTES } from "../../mocks/reportes.mock";
 import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
 import { MOCK_ZONAS } from "../../mocks/zonas.mock";
-import type { Cuadrilla } from "../../tipos/cuadrilla";
 import type { Reporte } from "../../tipos";
+import type { Cuadrilla } from "../../tipos/cuadrilla";
 import { vibracionExito } from "../../utils/haptica";
 
 type FiltroEstado = "todos" | "pendiente" | "en_progreso" | "resuelto";
@@ -28,11 +29,27 @@ const estadoConfig: Record<
   Reporte["estado"],
   { label: string; color: string; backgroundColor: string }
 > = {
-  recibido: { label: "Pendiente", color: "#A35C00", backgroundColor: "#FFF0D9" },
-  en_revision: { label: "En revisión", color: "#00579A", backgroundColor: "#DFF3FF" },
-  asignado: { label: "En Progreso", color: "#0B6E4F", backgroundColor: "#D9F7ED" },
+  recibido: {
+    label: "Pendiente",
+    color: "#A35C00",
+    backgroundColor: "#FFF0D9",
+  },
+  en_revision: {
+    label: "En revisión",
+    color: "#00579A",
+    backgroundColor: "#DFF3FF",
+  },
+  asignado: {
+    label: "En Progreso",
+    color: "#0B6E4F",
+    backgroundColor: "#D9F7ED",
+  },
   resuelto: { label: "Resuelto", color: "#155724", backgroundColor: "#D4EDDA" },
-  rechazado: { label: "Rechazado", color: "#6C757D", backgroundColor: "#E9ECEF" },
+  rechazado: {
+    label: "Rechazado",
+    color: "#6C757D",
+    backgroundColor: "#E9ECEF",
+  },
 };
 
 const filtroLabels: Array<{ value: FiltroEstado; label: string }> = [
@@ -66,14 +83,14 @@ const obtenerEstadoFiltrado = (estado: Reporte["estado"]): FiltroEstado => {
 
 export default function ListaReportesOperador(): React.ReactElement {
   const [filtroActivo, setFiltroActivo] = useState<FiltroEstado>("todos");
-  const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(
-    null,
-  );
-  const [nuevoEstado, setNuevoEstado] = useState<Reporte["estado"]>("en_revision");
+  const [reporteSeleccionado, setReporteSeleccionado] =
+    useState<Reporte | null>(null);
+  const [nuevoEstado, setNuevoEstado] =
+    useState<Reporte["estado"]>("en_revision");
   const [comentario, setComentario] = useState("");
-  const [cuadrillaSeleccionada, setCuadrillaSeleccionada] = useState<string | null>(
-    null,
-  );
+  const [cuadrillaSeleccionada, setCuadrillaSeleccionada] = useState<
+    string | null
+  >(null);
   const [fotoResolucion, setFotoResolucion] = useState<string | null>(null);
 
   const cuadrillasDisponibles = useMemo(() => {
@@ -135,17 +152,26 @@ export default function ListaReportesOperador(): React.ReactElement {
     }
 
     if (!comentario.trim()) {
-      Alert.alert("Comentario obligatorio", "Debes completar el comentario del operador.");
+      Alert.alert(
+        "Comentario obligatorio",
+        "Debes completar el comentario del operador.",
+      );
       return;
     }
 
     if (nuevoEstado === "asignado" && !cuadrillaSeleccionada) {
-      Alert.alert("Cuadrilla requerida", "Debes seleccionar una cuadrilla antes de guardar.");
+      Alert.alert(
+        "Cuadrilla requerida",
+        "Debes seleccionar una cuadrilla antes de guardar.",
+      );
       return;
     }
 
     if (nuevoEstado === "resuelto" && !fotoResolucion) {
-      Alert.alert("Foto requerida", "Debes adjuntar la foto del arreglo antes de guardar.");
+      Alert.alert(
+        "Foto requerida",
+        "Debes adjuntar la foto del arreglo antes de guardar.",
+      );
       return;
     }
 
@@ -174,8 +200,12 @@ export default function ListaReportesOperador(): React.ReactElement {
       >
         <View style={styles.cardHeader}>
           <View style={styles.titleWrap}>
-            <Text style={styles.tipoTexto}>{tipo?.nombre ?? "Reporte"}</Text>
-            <Text style={styles.codigoTexto}>{item.codigo}</Text>
+            <TextoCorregido style={styles.tipoTexto}>
+              {tipo?.nombre ?? "Reporte"}
+            </TextoCorregido>
+            <TextoCorregido style={styles.codigoTexto}>
+              {item.codigo}
+            </TextoCorregido>
           </View>
 
           <View
@@ -186,31 +216,35 @@ export default function ListaReportesOperador(): React.ReactElement {
               },
             ]}
           >
-            <Text style={[styles.badgeText, { color: estado.color }]}>
+            <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
               {estado.label}
-            </Text>
+            </TextoCorregido>
           </View>
         </View>
 
-        <Text style={styles.descripcionTexto} numberOfLines={2}>
+        <TextoCorregido style={styles.descripcionTexto} numberOfLines={2}>
           {item.descripcion ?? "Sin descripción adicional."}
-        </Text>
+        </TextoCorregido>
 
         <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Fecha</Text>
-          <Text style={styles.metaValue}>{formatFecha(item.creadoEn)}</Text>
+          <TextoCorregido style={styles.metaLabel}>Fecha</TextoCorregido>
+          <TextoCorregido style={styles.metaValue}>
+            {formatFecha(item.creadoEn)}
+          </TextoCorregido>
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Zona</Text>
-          <Text style={styles.metaValue}>{zona?.nombre ?? "Sin zona"}</Text>
+          <TextoCorregido style={styles.metaLabel}>Zona</TextoCorregido>
+          <TextoCorregido style={styles.metaValue}>
+            {zona?.nombre ?? "Sin zona"}
+          </TextoCorregido>
         </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["bottom", "left", "right"]} style={styles.container}>
       <View style={styles.filtrosContainer}>
         <ScrollView
           horizontal
@@ -230,14 +264,14 @@ export default function ListaReportesOperador(): React.ReactElement {
                   activo && styles.filtroButtonActivo,
                 ]}
               >
-                <Text
+                <TextoCorregido
                   style={[
                     styles.filtroTexto,
                     activo && styles.filtroTextoActivo,
                   ]}
                 >
                   {filtro.label}
-                </Text>
+                </TextoCorregido>
               </TouchableOpacity>
             );
           })}
@@ -260,13 +294,19 @@ export default function ListaReportesOperador(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Cambiar estado</Text>
+            <TextoCorregido style={styles.modalTitle}>
+              Cambiar estado
+            </TextoCorregido>
 
             {reporteSeleccionado && (
-              <Text style={styles.modalCodigo}>{reporteSeleccionado.codigo}</Text>
+              <TextoCorregido style={styles.modalCodigo}>
+                {reporteSeleccionado.codigo}
+              </TextoCorregido>
             )}
 
-            <Text style={styles.sectionTitle}>Nuevo Estado</Text>
+            <TextoCorregido style={styles.sectionTitle}>
+              Nuevo Estado
+            </TextoCorregido>
             <View style={styles.estadoOptions}>
               {Object.entries(estadoConfig).map(([estadoKey, config]) => {
                 const value = estadoKey as Reporte["estado"];
@@ -282,14 +322,14 @@ export default function ListaReportesOperador(): React.ReactElement {
                       selected && styles.estadoOptionSelected,
                     ]}
                   >
-                    <Text
+                    <TextoCorregido
                       style={[
                         styles.estadoOptionText,
                         selected && styles.estadoOptionTextSelected,
                       ]}
                     >
                       {config.label}
-                    </Text>
+                    </TextoCorregido>
                   </TouchableOpacity>
                 );
               })}
@@ -297,7 +337,9 @@ export default function ListaReportesOperador(): React.ReactElement {
 
             {nuevoEstado === "asignado" && (
               <View style={styles.extraSection}>
-                <Text style={styles.sectionTitle}>Seleccionar Cuadrilla</Text>
+                <TextoCorregido style={styles.sectionTitle}>
+                  Seleccionar Cuadrilla
+                </TextoCorregido>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -316,14 +358,14 @@ export default function ListaReportesOperador(): React.ReactElement {
                           selected && styles.estadoOptionSelected,
                         ]}
                       >
-                        <Text
+                        <TextoCorregido
                           style={[
                             styles.estadoOptionText,
                             selected && styles.estadoOptionTextSelected,
                           ]}
                         >
                           {cuadrilla.nombre}
-                        </Text>
+                        </TextoCorregido>
                       </TouchableOpacity>
                     );
                   })}
@@ -333,15 +375,19 @@ export default function ListaReportesOperador(): React.ReactElement {
 
             {nuevoEstado === "resuelto" && (
               <View style={styles.extraSection}>
-                <Text style={styles.sectionTitle}>Foto de resolución</Text>
+                <TextoCorregido style={styles.sectionTitle}>
+                  Foto de resolución
+                </TextoCorregido>
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={adjuntarFotoResolucion}
                   style={styles.fotoButton}
                 >
-                  <Text style={styles.fotoButtonText}>
-                    {fotoResolucion ? "Cambiar foto" : "Adjuntar foto del arreglo"}
-                  </Text>
+                  <TextoCorregido style={styles.fotoButtonText}>
+                    {fotoResolucion
+                      ? "Cambiar foto"
+                      : "Adjuntar foto del arreglo"}
+                  </TextoCorregido>
                 </TouchableOpacity>
 
                 {fotoResolucion && (
@@ -354,7 +400,9 @@ export default function ListaReportesOperador(): React.ReactElement {
               </View>
             )}
 
-            <Text style={styles.sectionTitle}>Comentario del Operador</Text>
+            <TextoCorregido style={styles.sectionTitle}>
+              Comentario del Operador
+            </TextoCorregido>
             <TextInput
               multiline
               numberOfLines={5}
@@ -372,7 +420,9 @@ export default function ListaReportesOperador(): React.ReactElement {
                 onPress={cerrarModal}
                 style={[styles.secondaryButton]}
               >
-                <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                <TextoCorregido style={styles.secondaryButtonText}>
+                  Cancelar
+                </TextoCorregido>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -384,7 +434,9 @@ export default function ListaReportesOperador(): React.ReactElement {
                   !comentario.trim() && styles.primaryButtonDisabled,
                 ]}
               >
-                <Text style={styles.primaryButtonText}>Guardar</Text>
+                <TextoCorregido style={styles.primaryButtonText}>
+                  Guardar
+                </TextoCorregido>
               </TouchableOpacity>
             </View>
           </View>
@@ -417,14 +469,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2F6",
     justifyContent: "center",
     alignItems: "center",
+    maxWidth: 110,
+    overflow: "hidden",
   },
-  filtroButtonActivo: {
-    backgroundColor: "#1F6FEB",
-  },
+
   filtroTexto: {
     fontSize: 12,
     fontWeight: "600",
     color: "#374151",
+    textAlign: "center",
+  },
+  filtroButtonActivo: {
+    backgroundColor: "#1F6FEB",
   },
   filtroTextoActivo: {
     color: "#FFFFFF",
@@ -472,16 +528,24 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 12,
   },
+
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     alignSelf: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+    maxWidth: 105,
+    overflow: "hidden",
   },
+
   badgeText: {
     fontSize: 11,
     fontWeight: "700",
+    textAlign: "center",
   },
+
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",

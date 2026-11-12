@@ -1,28 +1,20 @@
 import * as Device from "expo-device";
-import type { ReactNode } from "react";
 import { Platform, Text, type TextProps } from "react-native";
 
-type Props = TextProps & {
-  children: ReactNode;
-};
-
-const necesitaCorreccion =
+const esMotoE14 =
   Platform.OS === "android" &&
-  (Device.brand ?? "").toLowerCase().includes("motorola");
+  (Device.brand ?? "").toLowerCase() === "motorola" &&
+  (Device.modelName ?? "").toLowerCase() === "moto e14" &&
+  (Device.supportedCpuArchitectures ?? []).includes("armeabi-v7a") &&
+  !(Device.supportedCpuArchitectures ?? []).includes("arm64-v8a");
 
-export function TextoCorregido({ children, ...props }: Props) {
+export function TextoCorregido({ children, ...props }: TextProps) {
   return (
     <Text {...props}>
       {children}
-      {necesitaCorreccion && (
-        <Text
-          style={{
-            color: "transparent",
-            opacity: 0,
-          }}
-          accessible={false}
-        >
-          {" FINAL"}
+      {esMotoE14 && (
+        <Text style={{ color: "transparent", opacity: 0 }} accessible={false}>
+          {" Final"}
         </Text>
       )}
     </Text>

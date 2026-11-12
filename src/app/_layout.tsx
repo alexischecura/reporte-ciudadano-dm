@@ -59,8 +59,10 @@ function NavegacionSegunSesion() {
       </Stack.Protected>
 
       {/* Rutas exclusivas para operadores */}
+
       <Stack.Protected guard={esOperador}>
         <Stack.Screen name="operador" />
+        <Stack.Screen name="operador-perfil" />
       </Stack.Protected>
 
       {/* Seguridad disponible para usuarios autenticados */}
