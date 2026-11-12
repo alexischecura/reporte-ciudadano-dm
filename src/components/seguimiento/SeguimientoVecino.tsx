@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Modal,
   StyleSheet,
@@ -7,17 +8,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import QRCode from "react-native-qrcode-svg";
-
 import {
-  MOCK_CAMBIOS_ESTADO_CINCO_PASOS,
-  MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO,
-} from "../../mocks/cambios-de-estado.mock";
-import { MOCK_REPORTES } from "../../mocks/reportes.mock";
-import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
-import type { CambioDeEstado } from "../../tipos/cambio-de-estado";
-import type { Reporte } from "../../tipos";
+  listarMisReportes,
+  listarTiposDeReporte,
+  obtenerCambiosDeReporte,
+} from "../../servicios/reportes";
+import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
+
+import { TextoCorregido } from "@/components/texto-corregido";
+import { useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
 
 const estadoConfig: Record<
@@ -25,24 +27,18 @@ const estadoConfig: Record<
   { label: string; color: string; backgroundColor: string }
 > = {
   recibido: { label: "Recibido", color: "#A35C00", backgroundColor: "#FFF0D9" },
-  en_revision: { label: "En revisión", color: "#00579A", backgroundColor: "#DFF3FF" },
+  en_revision: {
+    label: "En revisión",
+    color: "#00579A",
+    backgroundColor: "#DFF3FF",
+  },
   asignado: { label: "Asignado", color: "#0B6E4F", backgroundColor: "#D9F7ED" },
   resuelto: { label: "Resuelto", color: "#155724", backgroundColor: "#D4EDDA" },
-  rechazado: { label: "Rechazado", color: "#6C757D", backgroundColor: "#E9ECEF" },
-};
-
-const getTipoReporte = (tipoId: string) =>
-  MOCK_TIPOS_DE_REPORTE.find((tipo) => tipo.id === tipoId) ?? null;
-
-const getCambiosEstadoPorReporte = (reporteId: string | null): CambioDeEstado[] => {
-  if (!reporteId) return [];
-
-  return [...MOCK_CAMBIOS_ESTADO_CINCO_PASOS, ...MOCK_CAMBIOS_ESTADO_RECHAZADO_LARGO]
-    .filter((cambio) => cambio.reporteId === reporteId)
-    .sort(
-      (a, b) =>
-        new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
-    );
+  rechazado: {
+    label: "Rechazado",
+    color: "#6C757D",
+    backgroundColor: "#E9ECEF",
+  },
 };
 
 const formatFecha = (fechaIso: string): string => {
@@ -56,16 +52,82 @@ const formatFecha = (fechaIso: string): string => {
 };
 
 export default function SeguimientoVecino(): React.ReactElement {
-  const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(
-    null,
+  const [reporteSeleccionado, setReporteSeleccionado] =
+    useState<Reporte | null>(null);
+  const [misReportes, setMisReportes] = useState<Reporte[]>([]);
+  const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
+  const [alturaAyuda, setAlturaAyuda] = useState(48);
+  const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
+    [],
+  );
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let activo = true;
+
+      async function cargarDatos() {
+        try {
+          setCargando(true);
+          setError(null);
+
+          const [reportes, tiposDisponibles] = await Promise.all([
+            listarMisReportes(),
+            listarTiposDeReporte(),
+          ]);
+
+          if (!activo) return;
+
+          setMisReportes(reportes);
+
+          setTipos(tiposDisponibles);
+        } catch {
+          if (activo) {
+            setError("No se pudieron cargar tus reclamos.");
+          }
+        } finally {
+          if (activo) {
+            setCargando(false);
+          }
+        }
+      }
+
+      void cargarDatos();
+
+      return () => {
+        activo = false;
+      };
+    }, []),
   );
 
-  const misReportes = useMemo(() => MOCK_REPORTES, []);
+  useEffect(() => {
+    if (!reporteSeleccionado) {
+      setHistorialReporte([]);
+      return;
+    }
 
-  const historialReporte = useMemo(
-    () => getCambiosEstadoPorReporte(reporteSeleccionado?.id ?? null),
-    [reporteSeleccionado],
-  );
+    const reporteActual = reporteSeleccionado;
+
+    async function cargarHistorial() {
+      try {
+        const cambios = await obtenerCambiosDeReporte(reporteActual.id);
+        setHistorialReporte(
+          [...cambios].sort(
+            (a, b) =>
+              new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+          ),
+        );
+      } catch {
+        setHistorialReporte([]);
+      }
+    }
+
+    void cargarHistorial();
+  }, [reporteSeleccionado]);
+
+  const getTipoReporte = (tipoId: string) =>
+    tipos.find((tipo) => tipo.id === tipoId) ?? null;
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
@@ -76,7 +138,14 @@ export default function SeguimientoVecino(): React.ReactElement {
         <View style={styles.cardHeader}>
           <View style={styles.titleWrap}>
             <Text style={styles.tipoTexto}>{tipo?.nombre ?? "Reporte"}</Text>
-            <Text style={styles.codigoTexto}>{item.codigo}</Text>
+
+            <Text
+              style={styles.codigoTexto}
+              textBreakStrategy="simple"
+              android_hyphenationFrequency="none"
+            >
+              {item.codigo}
+            </Text>
           </View>
 
           <View
@@ -87,15 +156,18 @@ export default function SeguimientoVecino(): React.ReactElement {
               },
             ]}
           >
-            <Text style={[styles.badgeText, { color: estado.color }]}>
+            <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
               {estado.label}
-            </Text>
+            </TextoCorregido>
           </View>
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Fecha</Text>
-          <Text style={styles.metaValue}>{formatFecha(item.creadoEn)}</Text>
+          <TextoCorregido style={styles.metaLabel}>Fecha</TextoCorregido>
+
+          <TextoCorregido style={styles.metaValue}>
+            {formatFecha(item.creadoEn)}
+          </TextoCorregido>
         </View>
 
         <TouchableOpacity
@@ -106,7 +178,9 @@ export default function SeguimientoVecino(): React.ReactElement {
           }}
           style={styles.primaryButton}
         >
-          <Text style={styles.primaryButtonText}>Ver Seguimiento y QR</Text>
+          <TextoCorregido style={styles.primaryButtonText}>
+            Ver Seguimiento y QR
+          </TextoCorregido>
         </TouchableOpacity>
       </View>
     );
@@ -118,13 +192,27 @@ export default function SeguimientoVecino(): React.ReactElement {
         <Text style={styles.headerTitle}>Mis Reclamos</Text>
       </View>
 
-      <FlatList
-        data={misReportes}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {cargando ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="small" color="#1F6FEB" />
+          <Text style={styles.loadingText}>Cargando tus reclamos…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>
+            No pudimos cargar tu seguimiento
+          </Text>
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={misReportes}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <Modal
         visible={reporteSeleccionado !== null}
@@ -134,12 +222,14 @@ export default function SeguimientoVecino(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{reporteSeleccionado?.codigo}</Text>
+            <TextoCorregido style={styles.modalTitle}>
+              {reporteSeleccionado?.codigo}
+            </TextoCorregido>
 
             <View style={styles.qrContainer}>
               {reporteSeleccionado && (
                 <QRCode
-                  value={reporteSeleccionado.id}
+                  value={reporteSeleccionado.codigo}
                   size={200}
                   backgroundColor="white"
                   color="#111827"
@@ -147,7 +237,18 @@ export default function SeguimientoVecino(): React.ReactElement {
               )}
             </View>
 
-            <Text style={styles.helperText}>
+            <Text
+              style={[styles.helperText, { minHeight: alturaAyuda }]}
+              onTextLayout={(evento) => {
+                const alturaNecesaria = Math.ceil(
+                  evento.nativeEvent.lines.length * 22 + 4,
+                );
+
+                if (alturaNecesaria > alturaAyuda) {
+                  setAlturaAyuda(alturaNecesaria);
+                }
+              }}
+            >
               Muestre este código en ventanilla para consultar su trámite.
             </Text>
 
@@ -166,9 +267,10 @@ export default function SeguimientoVecino(): React.ReactElement {
                         ]}
                       />
                       <View style={styles.timelineTextWrap}>
-                        <Text style={styles.timelineText}>
+                        <TextoCorregido style={styles.timelineText}>
                           {estadoConfig[cambio.estado]?.label ?? cambio.estado}
-                        </Text>
+                        </TextoCorregido>
+
                         {cambio.comentario ? (
                           <Text style={styles.timelineComment}>
                             {cambio.comentario}
@@ -187,16 +289,13 @@ export default function SeguimientoVecino(): React.ReactElement {
               {historialReporte.length === 0 && reporteSeleccionado && (
                 <View style={styles.timelineRow}>
                   <View
-                    style={[
-                      styles.timelineDot,
-                      styles.timelineDotActive,
-                    ]}
+                    style={[styles.timelineDot, styles.timelineDotActive]}
                   />
                   <View style={styles.timelineTextWrap}>
-                    <Text style={styles.timelineText}>
+                    <TextoCorregido style={styles.timelineText}>
                       {estadoConfig[reporteSeleccionado.estado]?.label ??
                         reporteSeleccionado.estado}
-                    </Text>
+                    </TextoCorregido>
                   </View>
                 </View>
               )}
@@ -210,7 +309,9 @@ export default function SeguimientoVecino(): React.ReactElement {
               }}
               style={styles.closeButton}
             >
-              <Text style={styles.closeButtonText}>Cerrar</Text>
+              <TextoCorregido style={styles.closeButtonText}>
+                Cerrar
+              </TextoCorregido>
             </TouchableOpacity>
           </View>
         </View>
@@ -235,12 +336,42 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#111827",
+    paddingRight: 4,
   },
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
     gap: 12,
+  },
+  loadingBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    padding: 24,
+  },
+  loadingText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
@@ -261,11 +392,15 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
+    minWidth: 0,
   },
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
+    flexShrink: 1,
+    paddingRight: 4,
+    includeFontPadding: true,
   },
   codigoTexto: {
     fontSize: 12,
@@ -278,37 +413,58 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     alignSelf: "flex-start",
+    flexShrink: 0,
+    minWidth: 76,
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 3,
+    includeFontPadding: true,
   },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    gap: 12,
   },
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "#6B7280",
+    flexShrink: 1,
+    paddingRight: 4,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
     color: "#111827",
+    textAlign: "right",
+    flexShrink: 0,
+    paddingHorizontal: 4,
+    includeFontPadding: true,
   },
   primaryButton: {
     backgroundColor: "#1F6FEB",
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 52,
     alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 15,
+    textAlign: "center",
+    flexShrink: 1,
+    paddingHorizontal: 5,
+    includeFontPadding: true,
   },
   modalBackdrop: {
     flex: 1,
@@ -401,5 +557,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
 });

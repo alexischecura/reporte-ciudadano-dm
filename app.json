@@ -4,11 +4,6 @@
     "slug": "reporte-ciudadano",
     "version": "1.0.0",
     "orientation": "portrait",
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "icon": "./assets/images/icon.png",
     "scheme": "reporteciudadano",
     "userInterfaceStyle": "automatic",
@@ -30,12 +25,14 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.jpg"
     },
     "plugins": [
       "expo-router",
@@ -43,7 +40,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash-icon.jpg",
           "imageWidth": 76
         }
       ],
@@ -66,7 +63,16 @@
           "microphonePermission": "Permitir acceso al micrófono para grabar notas de voz del reporte."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permití usar Face ID para desbloquear Reporte Ciudadano."
+        }
+      ],
+      "expo-image",
+      "expo-web-browser",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -75,8 +81,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "770647ce-4765-4f50-bd74-b5fdad607bb8"
+        "projectId": "821f7b40-f7b4-48ee-80dd-6ccbd9f5edc2"
       }
-    }
+    },
+    "owner": "alangarciatalma"
   }
 }

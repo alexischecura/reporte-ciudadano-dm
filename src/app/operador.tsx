@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useSesion } from "@/contexts/sesion-context";
@@ -15,6 +16,9 @@ export default function OperadorScreen() {
           Bienvenido, {usuario?.nombre}. Pantalla real pendiente de integrar
           (Frank).
         </ThemedText>
+        <Link href="/seguridad" asChild>
+          <ThemedText style={styles.link}>Seguridad de la cuenta</ThemedText>
+        </Link>
         <ThemedText onPress={logout} style={styles.link}>
           Cerrar sesión
         </ThemedText>

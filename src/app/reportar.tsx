@@ -10,22 +10,19 @@ import {
 } from "react-native";
 import { crearReporte, listarTiposDeReporte } from "../servicios/reportes";
 import type { Reporte, TipoDeReporte } from "../tipos";
-import { useSesion } from "../contexts/sesion-context";
-import { esError } from "../tipos/api";
 
-import { SafeAreaView } from "react-native-safe-area-context";
-import { NotaDeVoz } from "../components/reportes/nota-de-voz";
-import { SeccionFoto } from "../components/reportes/seccion-foto";
+import SelectorUbicacion from "@/components/reportes/mapa-reporte";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { NotaDeVoz } from "../components/reportes/nota-de-voz";
+import { SeccionFoto } from "../components/reportes/seccion-foto";
+import { useSesion } from "../contexts/sesion-context";
+import { esError } from "../tipos/api";
 
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
-
-const COORDS_MOCK = { latitud: -33.0089, longitud: -58.5142 };
-const DIRECCION_MOCK = "Rocamora 1240";
-const ZONA_MOCK = "zon-norte";
 
 export default function ReportarScreen() {
   const colors = useTheme();
@@ -38,6 +35,11 @@ export default function ReportarScreen() {
   const [fotos, setFotos] = useState<string[]>([]);
   const [descripcion, setDescripcion] = useState("");
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [ubicacion, setUbicacion] = useState<{
+    latitude: number;
+    longitude: number;
+    direccion: string;
+  } | null>(null);
 
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
@@ -62,7 +64,8 @@ export default function ReportarScreen() {
     };
   }, []);
 
-  const puedeEnviar = tipoId !== null && fotos.length >= 1 && !enviando;
+  const puedeEnviar =
+    tipoId !== null && fotos.length >= 1 && ubicacion !== null && !enviando;
 
   const enviar = async () => {
     if (!puedeEnviar || !tipoId) return;
@@ -70,30 +73,41 @@ export default function ReportarScreen() {
       setErrorEnvio("Tenés que iniciar sesión para crear un reporte.");
       return;
     }
+    if (!ubicacion) {
+      setErrorEnvio("Seleccioná la ubicación del problema en el mapa.");
+      return;
+    }
     setEnviando(true);
     setErrorEnvio(null);
 
-    const resultado = await crearReporte(
-      {
-        tipoId,
-        descripcion: descripcion.trim().length > 0 ? descripcion.trim() : null,
-        fotos,
-        audioUrl: audioUri,
-        coordenadas: COORDS_MOCK,
-        direccion: DIRECCION_MOCK,
-        zonaId: ZONA_MOCK,
-      },
-      usuario.id,
-    );
+    try {
+      const resultado = await crearReporte(
+        {
+          tipoId,
+          descripcion:
+            descripcion.trim().length > 0 ? descripcion.trim() : null,
+          fotos,
+          audioUrl: audioUri,
+          coordenadas: {
+            latitud: ubicacion.latitude,
+            longitud: ubicacion.longitude,
+          },
+          direccion: ubicacion.direccion,
+        },
+        usuario.id,
+      );
 
-    setEnviando(false);
+      if (esError(resultado)) {
+        setErrorEnvio(resultado.error.mensaje);
+        return;
+      }
 
-    if (esError(resultado)) {
-      setErrorEnvio(resultado.error.mensaje);
-      return;
+      setExito(resultado.datos);
+    } catch {
+      setErrorEnvio("Ocurrió un error al enviar el reporte. Reintentá.");
+    } finally {
+      setEnviando(false);
     }
-
-    setExito(resultado.datos);
   };
 
   const reintentarTipos = async () => {
@@ -131,6 +145,7 @@ export default function ReportarScreen() {
                 setFotos([]);
                 setDescripcion("");
                 setAudioUri(null);
+                setUbicacion(null);
               }}
             >
               <Text style={styles.botonTxt}>Crear otro reporte</Text>
@@ -153,9 +168,9 @@ export default function ReportarScreen() {
             style={[styles.botonSec, { borderColor: colors.primary }]}
             onPress={() => router.push("/seguimiento")}
           >
-            <ThemedText themeColor="primary" style={styles.botonSecTxt}>
+            <Text style={[styles.botonSecTxt, { color: colors.primary }]}>
               Ver mis reclamos
-            </ThemedText>
+            </Text>
           </Pressable>
 
           <ThemedText style={styles.seccion}>¿Qué pasa?</ThemedText>
@@ -170,9 +185,9 @@ export default function ReportarScreen() {
                 style={[styles.botonSec, { borderColor: colors.primary }]}
                 onPress={() => void reintentarTipos()}
               >
-                <ThemedText themeColor="primary" style={styles.botonSecTxt}>
+                <Text style={[styles.botonSecTxt, { color: colors.primary }]}>
                   Reintentar
-                </ThemedText>
+                </Text>
               </Pressable>
             </ThemedView>
           ) : tipos.length === 0 ? (
@@ -196,13 +211,14 @@ export default function ReportarScreen() {
                       },
                     ]}
                   >
-                    {activo ? (
-                      <Text style={[styles.chipTxt, { color: "#fff" }]}>
-                        {t.nombre}
-                      </Text>
-                    ) : (
-                      <ThemedText style={styles.chipTxt}>{t.nombre}</ThemedText>
-                    )}
+                    <Text
+                      style={[
+                        styles.chipTxt,
+                        { color: activo ? "#fff" : colors.text },
+                      ]}
+                    >
+                      {t.nombre}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -217,9 +233,17 @@ export default function ReportarScreen() {
 
           <View style={styles.bloque}>
             <ThemedText style={styles.seccion}>¿Dónde?</ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.sub}>
-              {DIRECCION_MOCK} — a 12 m de vos (GPS mockeado, lo conecta Alexis).
-            </ThemedText>
+            <SelectorUbicacion onLocationSelect={setUbicacion} />
+
+            {ubicacion && (
+              <Text>
+                Dirección: {ubicacion.direccion}
+                {"\n"}
+                Latitud: {ubicacion.latitude}
+                {"\n"}
+                Longitud: {ubicacion.longitude}
+              </Text>
+            )}
           </View>
 
           <View style={styles.bloque}>
@@ -269,7 +293,8 @@ export default function ReportarScreen() {
           </Pressable>
           {!puedeEnviar && (
             <ThemedText themeColor="textSecondary" style={styles.ayuda}>
-              Elegí el tipo de problema y agregá al menos 1 foto para enviar.
+              Elegí el tipo de problema, seleccioná la ubicación en el mapa y
+              agregá al menos 1 foto para enviar.
             </ThemedText>
           )}
         </ScrollView>
@@ -280,22 +305,33 @@ export default function ReportarScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  cont: { padding: 16, gap: 16, paddingBottom: 40 },
-  titulo: { fontSize: 24, fontWeight: "800" },
-  seccion: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
+  cont: { padding: 16, gap: 16, paddingBottom: 40, flexGrow: 1 },
+  titulo: { fontSize: 24, fontWeight: "800", flexShrink: 1 },
+  seccion: { fontSize: 18, fontWeight: "700", marginBottom: 8, flexShrink: 1 },
   sub: { fontSize: 14 },
   bloque: { gap: 4 },
-  grilla: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  grilla: { flexDirection: "row", flexWrap: "wrap", gap: 10, width: "100%" },
   chip: {
     borderWidth: 2,
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    minWidth: "47%",
+    flexBasis: "47%",
     flexGrow: 1,
+    minWidth: 0,
+    minHeight: 68,
     alignItems: "center",
+    justifyContent: "center",
   },
-  chipTxt: { fontSize: 16, fontWeight: "700" },
+  chipTxt: {
+    fontSize: 16,
+    fontWeight: "700",
+    width: "100%",
+    textAlign: "center",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    includeFontPadding: true,
+  },
   input: {
     borderWidth: 1,
     borderRadius: 12,
@@ -307,7 +343,10 @@ const styles = StyleSheet.create({
   boton: {
     borderRadius: 12,
     paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 64,
     marginTop: 8,
   },
   botonOff: { opacity: 0.4 },
@@ -315,7 +354,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "800",
-    letterSpacing: 1,
+    letterSpacing: 0.3,
+    textAlign: "center",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    width: "100%",
+    includeFontPadding: true,
   },
   botonSec: {
     borderWidth: 1.5,
@@ -323,9 +367,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 54,
     marginTop: 8,
   },
-  botonSecTxt: { fontSize: 16, fontWeight: "700" },
+  botonSecTxt: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    width: "100%",
+    includeFontPadding: true,
+  },
   errorBox: {
     borderRadius: 12,
     padding: 12,
