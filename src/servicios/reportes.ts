@@ -73,6 +73,39 @@ export async function obtenerReporte(id: string): Promise<Reporte> {
   return request<Reporte>(`/reportes/${id}`);
 }
 
+export async function obtenerEstadoAdhesionReporte(
+  reporteId: string,
+): Promise<boolean> {
+  const token = await obtenerToken();
+
+  if (!token) {
+    throw new Error("Tenés que iniciar sesión para consultar tu adhesión.");
+  }
+
+  const data = await request<{ adherido: boolean }>(
+    `/reportes/${reporteId}/adhesion`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+
+  return data.adherido;
+}
+
+export async function adherirseAReporte(reporteId: string): Promise<Reporte> {
+  const token = await obtenerToken();
+
+  if (!token) {
+    throw new Error("Tenés que iniciar sesión para adherirte a este reporte.");
+  }
+
+  return request<Reporte>(`/reportes/${reporteId}/adhesiones`, {
+    method: "POST",
+    token,
+  });
+}
+
 export async function obtenerCambiosDeReporte(
   reporteId: string,
 ): Promise<CambioDeEstado[]> {
