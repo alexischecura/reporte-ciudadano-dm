@@ -106,9 +106,12 @@ export default function ListaReportesOperador(): React.ReactElement {
     setLoading(true);
     try {
       let estadoParam: string | undefined = undefined;
-      if (filtroActivo === "pendiente") estadoParam = "recibido";
-      else if (filtroActivo === "en_progreso") estadoParam = "asignado";
-      else if (filtroActivo === "en_revision") estadoParam = "en_revision";
+
+      if (filtroActivo === "pendiente") {
+        estadoParam = "recibido";
+      } else if (filtroActivo === "en_progreso") {
+        estadoParam = "asignado";
+      }
 
       const resultado = await listarBandejaOperador({
         estado: estadoParam,

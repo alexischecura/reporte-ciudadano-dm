@@ -28,7 +28,8 @@ import * as Notifications from 'expo-notifications';
 // 2. Configurar cómo se comportan las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
