@@ -20,7 +20,8 @@ import {
   listarCuadrillas,
   listarTiposDeReporte,
   listarZonas,
-  listarReportes
+  listarReportes,
+  marcarReporteComoDuplicado
 } from "../../servicios/reportes";
 import type { Reporte } from "../../tipos";
 import type { Cuadrilla } from "../../tipos/cuadrilla";
@@ -87,6 +88,11 @@ export default function ListaReportesOperador(): React.ReactElement {
   const [comentario, setComentario] = useState("");
   const [cuadrillaSeleccionada, setCuadrillaSeleccionada] = useState<string | null>(null);
   const [fotoResolucion, setFotoResolucion] = useState<string | null>(null);
+  
+  // Estados para la funcionalidad de duplicados
+  const [esDuplicado, setEsDuplicado] = useState(false);
+  const [reporteOriginalId, setReporteOriginalId] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   // Funciones dinámicas que buscan en el estado local
@@ -164,6 +170,8 @@ export default function ListaReportesOperador(): React.ReactElement {
     setComentario("");
     setCuadrillaSeleccionada(null);
     setFotoResolucion(null);
+    setEsDuplicado(false);
+    setReporteOriginalId("");
   };
 
   const cerrarModal = () => {
@@ -172,6 +180,8 @@ export default function ListaReportesOperador(): React.ReactElement {
     setComentario("");
     setCuadrillaSeleccionada(null);
     setFotoResolucion(null);
+    setEsDuplicado(false);
+    setReporteOriginalId("");
   };
 
   const adjuntarFotoResolucion = async () => {
@@ -202,7 +212,15 @@ export default function ListaReportesOperador(): React.ReactElement {
       return;
     }
 
-    if (nuevoEstado === "asignado" && !cuadrillaSeleccionada) {
+    if (esDuplicado && !reporteOriginalId) {
+      Alert.alert(
+        "Reporte original requerido",
+        "Debes seleccionar cuál es el reporte original de la lista.",
+      );
+      return;
+    }
+
+    if (!esDuplicado && nuevoEstado === "asignado" && !cuadrillaSeleccionada) {
       Alert.alert(
         "Cuadrilla requerida",
         "Debes seleccionar una cuadrilla antes de guardar.",
@@ -210,7 +228,7 @@ export default function ListaReportesOperador(): React.ReactElement {
       return;
     }
 
-    if (nuevoEstado === "resuelto" && !fotoResolucion) {
+    if (!esDuplicado && nuevoEstado === "resuelto" && !fotoResolucion) {
       Alert.alert(
         "Foto requerida",
         "Debes adjuntar la foto del arreglo antes de guardar.",
@@ -221,7 +239,13 @@ export default function ListaReportesOperador(): React.ReactElement {
     try {
       setLoading(true);
 
-      if (nuevoEstado === "asignado" && cuadrillaSeleccionada) {
+      if (esDuplicado) {
+        await marcarReporteComoDuplicado(
+          reporteSeleccionado.id,
+          reporteOriginalId,
+          comentario.trim()
+        );
+      } else if (nuevoEstado === "asignado" && cuadrillaSeleccionada) {
         await asignarCuadrillaReporte(
           reporteSeleccionado.id, 
           cuadrillaSeleccionada,
@@ -245,9 +269,7 @@ export default function ListaReportesOperador(): React.ReactElement {
       
       Alert.alert(
         "Transición no permitida",
-        mensajeApi.includes("estado actual") 
-          ? "El reporte no puede pasar a este estado desde su situación actual. Revisa el flujo de etapas." 
-          : mensajeApi
+        mensajeApi
       );
     } finally {
       setLoading(false);
@@ -400,7 +422,7 @@ export default function ListaReportesOperador(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <TextoCorregido style={styles.modalTitle}>Cambiar estado</TextoCorregido>
+            <TextoCorregido style={styles.modalTitle}>Gestionar Reporte</TextoCorregido>
 
             {reporteSeleccionado && (
               <TextoCorregido style={styles.modalCodigo}>
@@ -408,82 +430,121 @@ export default function ListaReportesOperador(): React.ReactElement {
               </TextoCorregido>
             )}
 
-            <TextoCorregido style={styles.sectionTitle}>Nuevo Estado</TextoCorregido>
-            <View style={styles.estadoOptions}>
-              {Object.entries(estadoConfig).map(([estadoKey, config]) => {
-                const value = estadoKey as Reporte["estado"];
-                const selected = nuevoEstado === value;
+            {/* BOTÓN / TOGGLE PARA MARCAR COMO DUPLICADO */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setEsDuplicado(!esDuplicado)}
+              style={[styles.duplicadoToggle, esDuplicado && styles.duplicadoToggleActive]}
+            >
+              <TextoCorregido style={[styles.duplicadoToggleText, esDuplicado && styles.duplicadoToggleTextActive]}>
+                {esDuplicado ? "✔ Marcado como Duplicado" : "Marcar como Duplicado de otro"}
+              </TextoCorregido>
+            </TouchableOpacity>
 
-                return (
-                  <TouchableOpacity
-                    key={value}
-                    activeOpacity={0.8}
-                    onPress={() => setNuevoEstado(value)}
-                    style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
-                  >
-                    <TextoCorregido
-                      style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
-                    >
-                      {config.label}
-                    </TextoCorregido>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {nuevoEstado === "asignado" && (
+            {esDuplicado ? (
               <View style={styles.extraSection}>
-                <TextoCorregido style={styles.sectionTitle}>Seleccionar Cuadrilla</TextoCorregido>
-                {cuadrillasDisponibles.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
-                    {cuadrillasDisponibles.map((cuadrilla: Cuadrilla) => {
-                      const selected = cuadrillaSeleccionada === cuadrilla.id;
+                <TextoCorregido style={styles.sectionTitle}>Seleccioná el Reporte Original:</TextoCorregido>
+                <ScrollView style={styles.listaOriginalesScroll} nestedScrollEnabled>
+                  {reportes
+                    .filter((r) => r.id !== reporteSeleccionado?.id)
+                    .map((item) => {
+                      const selected = reporteOriginalId === item.id;
+                      const tipo = getTipoReporte(item.tipoId);
                       return (
                         <TouchableOpacity
-                          key={cuadrilla.id}
+                          key={item.id}
                           activeOpacity={0.8}
-                          onPress={() => setCuadrillaSeleccionada(cuadrilla.id)}
-                          style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
+                          onPress={() => setReporteOriginalId(item.id)}
+                          style={[styles.originalItem, selected && styles.originalItemSelected]}
                         >
-                          <TextoCorregido
-                            style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
-                          >
-                            {cuadrilla.nombre}
+                          <TextoCorregido style={[styles.originalItemText, selected && styles.originalItemTextSelected]}>
+                            {item.codigo} - {tipo?.nombre ?? "Reporte"} ({item.estado})
                           </TextoCorregido>
                         </TouchableOpacity>
                       );
                     })}
-                  </ScrollView>
-                ) : (
-                  <TextoCorregido style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>
-                    No hay cuadrillas activas para la zona de este reporte.
-                  </TextoCorregido>
-                )}
+                </ScrollView>
               </View>
-            )}
+            ) : (
+              <>
+                <TextoCorregido style={styles.sectionTitle}>Nuevo Estado</TextoCorregido>
+                <View style={styles.estadoOptions}>
+                  {Object.entries(estadoConfig).map(([estadoKey, config]) => {
+                    const value = estadoKey as Reporte["estado"];
+                    const selected = nuevoEstado === value;
 
-            {nuevoEstado === "resuelto" && (
-              <View style={styles.extraSection}>
-                <TextoCorregido style={styles.sectionTitle}>Foto de resolución</TextoCorregido>
-                <TouchableOpacity activeOpacity={0.8} onPress={adjuntarFotoResolucion} style={styles.fotoButton}>
-                  <TextoCorregido style={styles.fotoButtonText}>
-                    {fotoResolucion ? "Cambiar foto" : "Adjuntar foto del arreglo"}
-                  </TextoCorregido>
-                </TouchableOpacity>
+                    return (
+                      <TouchableOpacity
+                        key={value}
+                        activeOpacity={0.8}
+                        onPress={() => setNuevoEstado(value)}
+                        style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
+                      >
+                        <TextoCorregido
+                          style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
+                        >
+                          {config.label}
+                        </TextoCorregido>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
-                {fotoResolucion && (
-                  <Image source={{ uri: fotoResolucion }} style={styles.previewImage} resizeMode="cover" />
+                {nuevoEstado === "asignado" && (
+                  <View style={styles.extraSection}>
+                    <TextoCorregido style={styles.sectionTitle}>Seleccionar Cuadrilla</TextoCorregido>
+                    {cuadrillasDisponibles.length > 0 ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
+                        {cuadrillasDisponibles.map((cuadrilla: Cuadrilla) => {
+                          const selected = cuadrillaSeleccionada === cuadrilla.id;
+                          return (
+                            <TouchableOpacity
+                              key={cuadrilla.id}
+                              activeOpacity={0.8}
+                              onPress={() => setCuadrillaSeleccionada(cuadrilla.id)}
+                              style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
+                            >
+                              <TextoCorregido
+                                style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
+                              >
+                                {cuadrilla.nombre}
+                              </TextoCorregido>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    ) : (
+                      <TextoCorregido style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>
+                        No hay cuadrillas activas para la zona de este reporte.
+                      </TextoCorregido>
+                    )}
+                  </View>
                 )}
-              </View>
+
+                {nuevoEstado === "resuelto" && (
+                  <View style={styles.extraSection}>
+                    <TextoCorregido style={styles.sectionTitle}>Foto de resolución</TextoCorregido>
+                    <TouchableOpacity activeOpacity={0.8} onPress={adjuntarFotoResolucion} style={styles.fotoButton}>
+                      <TextoCorregido style={styles.fotoButtonText}>
+                        {fotoResolucion ? "Cambiar foto" : "Adjuntar foto del arreglo"}
+                      </TextoCorregido>
+                    </TouchableOpacity>
+
+                    {fotoResolucion && (
+                      <Image source={{ uri: fotoResolucion }} style={styles.previewImage} resizeMode="cover" />
+                    )}
+                  </View>
+                )}
+              </>
             )}
 
             <TextoCorregido style={styles.sectionTitle}>Comentario del Operador</TextoCorregido>
             <TextInput
               multiline
-              numberOfLines={4}
+              numberOfLines={3}
               value={comentario}
               onChangeText={setComentario}
-              placeholder="Escribe el motivo del cambio de estado..."
+              placeholder="Escribe el motivo..."
               placeholderTextColor="#9CA3AF"
               style={styles.textInput}
               textAlignVertical="top"
@@ -497,8 +558,8 @@ export default function ListaReportesOperador(): React.ReactElement {
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={guardarCambioEstado}
-                disabled={!comentario.trim()}
-                style={[styles.primaryButton, !comentario.trim() && styles.primaryButtonDisabled]}
+                disabled={!comentario.trim() || loading}
+                style={[styles.primaryButton, (!comentario.trim() || loading) && styles.primaryButtonDisabled]}
               >
                 <TextoCorregido style={styles.primaryButtonText}>Guardar</TextoCorregido>
               </TouchableOpacity>
@@ -538,28 +599,32 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: "rgba(17, 24, 39, 0.45)", justifyContent: "center", padding: 20 },
   modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 20 },
   modalTitle: { fontSize: 22, fontWeight: "700", color: "#111827", marginBottom: 6 },
-  modalCodigo: { fontSize: 14, color: "#4B5563", marginBottom: 16, fontWeight: "600" },
+  modalCodigo: { fontSize: 14, color: "#4B5563", marginBottom: 14, fontWeight: "600" },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: "#111827", marginBottom: 8 },
+  duplicadoToggle: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB", marginBottom: 14, alignItems: "center" },
+  duplicadoToggleActive: { backgroundColor: "#FEF3C7", borderColor: "#D97706" },
+  duplicadoToggleText: { fontSize: 13, fontWeight: "700", color: "#374151" },
+  duplicadoToggleTextActive: { color: "#92400E" },
+  listaOriginalesScroll: { maxHeight: 160, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, marginBottom: 14, backgroundColor: "#F9FAFB" },
+  originalItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  originalItemSelected: { backgroundColor: "#DBEAFE" },
+  originalItemText: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  originalItemTextSelected: { color: "#1D4ED8", fontWeight: "700" },
   estadoOptions: { flexDirection: "row", flexWrap: "wrap", marginBottom: 14, gap: 8 },
   estadoOption: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#EEF2F6", borderWidth: 1, borderColor: "#D1D5DB" },
   estadoOptionSelected: { backgroundColor: "#E8F0FF", borderColor: "#2563EB" },
   estadoOptionText: { fontSize: 12, color: "#374151", fontWeight: "600" },
   estadoOptionTextSelected: { color: "#1D4ED8" },
   extraSection: { marginBottom: 14 },
-  textInput: { minHeight: 100, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, padding: 12, fontSize: 14, backgroundColor: "#F9FAFB", marginBottom: 14 },
+  textInput: { minHeight: 70, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, padding: 12, fontSize: 14, backgroundColor: "#F9FAFB", marginBottom: 14 },
   fotoButton: { backgroundColor: "#E8F0FF", borderRadius: 10, paddingVertical: 10, alignItems: "center", marginBottom: 10 },
   fotoButtonText: { color: "#1D4ED8", fontWeight: "700", fontSize: 13 },
-  previewImage: { width: "100%", height: 150, borderRadius: 12, marginBottom: 10 },
+  previewImage: { width: "100%", height: 120, borderRadius: 12, marginBottom: 10 },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
   secondaryButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#E5E7EB" },
   secondaryButtonText: { color: "#111827", fontWeight: "600" },
   primaryButton: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: "#1F6FEB" },
   primaryButtonDisabled: { backgroundColor: "#93C5FD" },
   primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-  cardImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
+  cardImage: { width: "100%", height: 140, borderRadius: 10, marginBottom: 12 },
 });

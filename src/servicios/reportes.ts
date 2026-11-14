@@ -261,3 +261,46 @@ export async function listarCuadrillas(): Promise<any> {
 export async function listarZonas(): Promise<any[]> {
   return request<any[]>("/zonas", { method: "GET" });
 }
+
+
+export async function marcarReporteComoDuplicado(
+  reporteId: string,
+  originalInput: string,
+  comentario: string
+): Promise<any> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa para marcar duplicados.");
+  }
+
+  let originalId = originalInput.trim();
+
+  // Si el operador ingresó un código visible (ej: GCHU-...) en lugar del ID interno (rep-...)
+  if (!originalId.startsWith("rep-")) {
+    try {
+      // Intentamos buscar el reporte por su código en el endpoint correspondiente
+      const resCodigo = await request<any>(`/reportes/codigo/${originalId}`);
+      const reporteEncontrado = resCodigo?.datos || resCodigo;
+      if (reporteEncontrado?.id) {
+        originalId = reporteEncontrado.id;
+      }
+    } catch {
+      // Fallback: buscamos en el listado general si el endpoint anterior no estuviera disponible
+      const todos = await listarReportes();
+      const encontrado = todos.find(
+        (r) => r.codigo.toLowerCase() === originalInput.toLowerCase()
+      );
+      if (encontrado) {
+        originalId = encontrado.id;
+      }
+    }
+  }
+
+  return request<any>(`/reportes/${reporteId}/duplicado`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      originalId,
+    }),
+  });
+}
