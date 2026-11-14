@@ -50,3 +50,6 @@ example
 /android
 error-android.txt
 ALAN_CAMBIOS_Y_PRUEBAS.md
+# Configuración y credenciales locales de Firebase
+google-services.json
+*firebase-adminsdk*.json
