@@ -1,4 +1,9 @@
-import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity
+} from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -28,7 +33,8 @@ export default function LoginScreen() {
     setEnviando(true);
     try {
       const resultado = await login({ email: email.trim(), password });
-      if (!resultado.ok) setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
+      if (!resultado.ok)
+        setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
     } catch {
       setError("Ocurrió un error inesperado.");
     } finally {
@@ -39,9 +45,13 @@ export default function LoginScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title" style={styles.title}>
-          Reporte Ciudadano
-        </ThemedText>
+        <Image
+          source={require("../../assets/images/splash-icon.png")}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Reporte Ciudadano"
+        />
+
         <ThemedText style={styles.subtitle}>
           Iniciá sesión para continuar
         </ThemedText>
@@ -101,7 +111,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
   },
-  title: { textAlign: "center" },
+
+  titleContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    gap: 0,
+  },
+
+  titleWord: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    includeFontPadding: true,
+  },
+
+  logo: {
+    width: "100%",
+    height: 130,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+
   subtitle: { textAlign: "center", marginBottom: Spacing.three },
   input: {
     borderWidth: 1,
