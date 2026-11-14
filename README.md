@@ -28,3 +28,7 @@ Aplicación móvil para la Municipalidad de Gualeguaychú, diseñada para que lo
 
 1. Instalar dependencias: `npm install`
 2. Iniciar el servidor de desarrollo: `npx expo start`
+
+## Notificaciones
+
+La integración móvil de Expo está implementada. Para configurar Firebase/APNs, completar el backend y probar en un teléfono, seguir [NOTIFICACIONES.md](NOTIFICACIONES.md). La entrega real todavía requiere validación en dispositivo.

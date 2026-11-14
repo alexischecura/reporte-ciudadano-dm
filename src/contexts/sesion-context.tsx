@@ -16,6 +16,7 @@ import {
   obtenerPreferenciaBiometria,
 } from "@/servicios/preferencias";
 import { borrarToken, guardarToken, obtenerToken } from "@/servicios/sesion";
+import { darDeBajaNotificaciones, guardarAvisos } from "@/servicios/notificaciones";
 import { Usuario } from "@/tipos";
 import { esError } from "@/tipos/api";
 import {
@@ -48,6 +49,7 @@ interface SesionContextType {
   usarOtraCuenta: () => Promise<void>;
   reintentarRestauracion: () => Promise<void>;
   desbloquear: () => Promise<ResultadoBiometria>;
+  cambiarAvisos: (habilitada: boolean) => Promise<void>;
   cambiarBiometria: (habilitada: boolean) => Promise<ResultadoAcceso>;
 }
 
@@ -159,11 +161,17 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     // Si no se puede limpiar SecureStore, no aparentar que salió correctamente.
+    await darDeBajaNotificaciones();
     await borrarToken();
     setUsuario(null);
     setBiometriaActiva(false);
     setErrorSesion(null);
     setFase("anonimo");
+  }
+
+  async function cambiarAvisos(habilitada: boolean) {
+    const actualizado = await guardarAvisos(habilitada);
+    setUsuario(actualizado);
   }
 
   async function usarOtraCuenta() {
@@ -220,6 +228,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
         reintentarRestauracion,
         desbloquear,
         cambiarBiometria,
+        cambiarAvisos,
       }}
     >
       {children}

@@ -64,6 +64,7 @@
         }
       ],
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-local-authentication",
         {

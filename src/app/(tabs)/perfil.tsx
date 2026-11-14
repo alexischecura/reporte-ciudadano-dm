@@ -1,5 +1,7 @@
 import {
   Alert,
+  Linking,
+  Switch,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,13 +9,45 @@ import {
   View,
 } from "react-native";
 
+import { useState } from "react";
+import { mensajeNotificaciones, registrarNotificaciones, probarNotificaciones } from "@/servicios/notificaciones";
 import { TextoCorregido } from "@/components/texto-corregido";
 import { useSesion } from "@/contexts/sesion-context";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function PerfilScreen() {
-  const { usuario, logout } = useSesion();
+  const { usuario, logout, cambiarAvisos } = useSesion();
+  const [ocupado, setOcupado] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+
+  async function configurarAvisos(habilitada: boolean) {
+    setOcupado(true);
+    setMensaje(null);
+    try {
+      if (habilitada) await registrarNotificaciones(true);
+      await cambiarAvisos(habilitada);
+      setMensaje(habilitada ? "Avisos activados." : "Avisos desactivados en tu cuenta.");
+    } catch (error) {
+      setMensaje(mensajeNotificaciones(error));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function probarAvisos() {
+    setOcupado(true);
+    setMensaje(null);
+    try {
+      await registrarNotificaciones(true);
+      const enviadas = await probarNotificaciones();
+      setMensaje(enviadas > 0 ? "Prueba solicitada. Comprobá si llega el aviso al teléfono." : "No se enviaron avisos. Verificá que estén activados en tu cuenta.");
+    } catch (error) {
+      setMensaje(mensajeNotificaciones(error));
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   const cerrarSesion = () => {
     Alert.alert(
@@ -25,7 +59,7 @@ export default function PerfilScreen() {
           text: "Cerrar sesión",
           style: "destructive",
           onPress: () => {
-            void logout();
+            void logout().catch(() => Alert.alert("No pudimos cerrar sesión", "No se pudo dar de baja este teléfono. Revisá la conexión y volvé a intentar."));
           },
         },
       ],
@@ -74,8 +108,24 @@ export default function PerfilScreen() {
           <Text style={styles.chevron}>›</Text>
         </Pressable>
 
+        <View style={styles.option}>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Avisos de mis reportes</Text>
+            <Text style={styles.optionSubtitle}>Cambios de estado y nuevas adhesiones. Esta preferencia se aplica a toda tu cuenta.</Text>
+          </View>
+          <Switch accessibilityLabel="Recibir avisos de mis reportes" value={usuario?.avisosActivos ?? false} disabled={ocupado} onValueChange={(valor) => void configurarAvisos(valor)} />
+        </View>
+        <Pressable style={styles.option} disabled={ocupado || !usuario?.avisosActivos} accessibilityRole="button" onPress={() => void probarAvisos()}>
+          <Text style={styles.optionTitle}>{ocupado ? "Configurando avisos…" : "Activar en este teléfono y probar"}</Text>
+        </Pressable>
+        {mensaje && <Text accessibilityLiveRegion="polite" style={styles.optionSubtitle}>{mensaje}</Text>}
+        <Pressable style={styles.option} accessibilityRole="button" onPress={() => void Linking.openSettings()}>
+          <Text style={styles.optionTitle}>Permisos en ajustes del teléfono</Text>
+        </Pressable>
+
         <Pressable
           style={styles.logoutButton}
+          disabled={ocupado}
           onPress={cerrarSesion}
           accessibilityRole="button"
         >
