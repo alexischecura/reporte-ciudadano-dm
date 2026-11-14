@@ -7,9 +7,9 @@ import {
   validarToken,
 } from "@/servicios/auth";
 import {
+  ResultadoBiometria,
   autenticarConBiometria,
   haySoporteBiometrico,
-  ResultadoBiometria,
 } from "@/servicios/biometria";
 import {
   guardarPreferenciaBiometria,
@@ -20,13 +20,16 @@ import { darDeBajaNotificaciones, guardarAvisos } from "@/servicios/notificacion
 import { Usuario } from "@/tipos";
 import { esError } from "@/tipos/api";
 import {
-  createContext,
   ReactNode,
+  createContext,
   useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
+
+import { Usuario } from "@/tipos";
+import { esError } from "@/tipos/api";
 
 export type FaseSesion =
   | "cargando"
@@ -110,8 +113,51 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   const reintentarRestauracion = async () => {
     setFase("cargando");
     setErrorSesion(null);
-    aplicarRestauracion(await cargarSesionGuardada());
-  };
+    try {
+      const token = await obtenerToken();
+      if (!token) {
+        setUsuario(null);
+        setFase("anonimo");
+        return;
+      }
+
+      const respuesta = await validarToken(token);
+      if (esError(respuesta)) {
+        if (respuesta.error.codigo === "NO_AUTENTICADO") {
+          await borrarToken();
+          setUsuario(null);
+          setBiometriaActiva(false);
+          setFase("anonimo");
+          return;
+        }
+        // No destruir un token válido por caída de wifi, 500 o timeout.
+        setUsuario(null);
+        setErrorSesion(respuesta.error.mensaje);
+        setFase("sin_conexion");
+        return;
+      }
+
+      const perfil = respuesta.datos;
+      setUsuario(perfil);
+      let preferencia = false;
+
+      try {
+        preferencia = await obtenerPreferenciaBiometria(perfil.id);
+      } catch (error) {
+        console.error(
+          "[SQLITE] Error al recuperar preferencia biométrica:",
+          error,
+        );
+      }
+
+      setBiometriaActiva(preferencia);
+      setFase(preferencia ? "bloqueado" : "autenticado");
+    } catch {
+      setUsuario(null);
+      setErrorSesion("No pudimos recuperar la sesión. Probá nuevamente.");
+      setFase("sin_conexion");
+    }
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -123,26 +169,50 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     };
   }, [aplicarRestauracion]);
 
-  async function completarAcceso(sesion: SesionUsuario): Promise<ResultadoAcceso> {
+  async function completarAcceso(
+    sesion: SesionUsuario,
+  ): Promise<ResultadoAcceso> {
     try {
-      // Primero guardar de forma segura; luego mostrar la ruta privada.
       await guardarToken(sesion.token);
-      setUsuario(sesion.usuario);
-      setBiometriaActiva(await obtenerPreferenciaBiometria(sesion.usuario.id));
-      setErrorSesion(null);
-      setFase("autenticado");
-      return { ok: true };
-    } catch {
+    } catch (error) {
+      console.error("[SESION] Error al guardar el token:", error);
+
       setUsuario(null);
+      setBiometriaActiva(false);
       setFase("anonimo");
-      return { ok: false, mensaje: "No pudimos guardar tu sesión de forma segura." };
+
+      return {
+        ok: false,
+        mensaje: "No pudimos guardar tu sesión de forma segura.",
+      };
     }
+
+    let preferenciaBiometria = false;
+
+    try {
+      preferenciaBiometria = await obtenerPreferenciaBiometria(
+        sesion.usuario.id,
+      );
+    } catch (error) {
+      console.warn(
+        "[SESION] No se pudo leer la preferencia biométrica:",
+        error,
+      );
+    }
+
+    setUsuario(sesion.usuario);
+    setBiometriaActiva(preferenciaBiometria);
+    setErrorSesion(null);
+    setFase("autenticado");
+
+    return { ok: true };
   }
 
   async function login(datos: CredencialesLogin): Promise<ResultadoAcceso> {
     try {
       const respuesta = await loginServicio(datos);
-      if (esError(respuesta)) return { ok: false, mensaje: respuesta.error.mensaje };
+      if (esError(respuesta))
+        return { ok: false, mensaje: respuesta.error.mensaje };
       return await completarAcceso(respuesta.datos);
     } catch {
       return { ok: false, mensaje: "No pudimos iniciar sesión." };
@@ -152,7 +222,8 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   async function registrar(datos: DatosRegistro): Promise<ResultadoAcceso> {
     try {
       const respuesta = await registrarServicio(datos);
-      if (esError(respuesta)) return { ok: false, mensaje: respuesta.error.mensaje };
+      if (esError(respuesta))
+        return { ok: false, mensaje: respuesta.error.mensaje };
       return await completarAcceso(respuesta.datos);
     } catch {
       return { ok: false, mensaje: "No pudimos completar el registro." };
@@ -187,7 +258,9 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     return resultado;
   }
 
-  async function cambiarBiometria(habilitada: boolean): Promise<ResultadoAcceso> {
+  async function cambiarBiometria(
+    habilitada: boolean,
+  ): Promise<ResultadoAcceso> {
     if (!usuario || fase !== "autenticado") {
       return { ok: false, mensaje: "Primero iniciá sesión." };
     }

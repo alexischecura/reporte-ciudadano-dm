@@ -1,3 +1,5 @@
+import * as Notifications from "expo-notifications";
+
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,16 +28,15 @@ import { useSesion } from "../contexts/sesion-context";
 import { esError } from "../tipos/api";
 
 // 1. Importar notificaciones
-import * as Notifications from 'expo-notifications';
 
 // 2. Configurar cómo se comportan las notificaciones
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
   }),
 });
 
@@ -135,7 +136,6 @@ export default function ReportarScreen() {
         trigger: null, // trigger null hace que salte de forma inmediata
       });
       // -----------------------------------------------------------
-
     } catch {
       setErrorEnvio("Ocurrió un error al enviar el reporte. Reintentá.");
     } finally {
