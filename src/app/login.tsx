@@ -1,4 +1,4 @@
-import { StyleSheet, TextInput, TouchableOpacity, Image } from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -39,13 +39,6 @@ export default function LoginScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <Image
-          source={require("../../assets/images/splash-icon.png")}
-          style={styles.logo}
-          resizeMode="contain"
-          accessibilityLabel="Reporte Ciudadano"
-        />
-        
         <ThemedText type="title" style={styles.title}>
           Reporte Ciudadano
         </ThemedText>
@@ -107,12 +100,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    alignSelf: "center",
-    marginBottom: Spacing.two,
   },
   title: { textAlign: "center" },
   subtitle: { textAlign: "center", marginBottom: Spacing.three },

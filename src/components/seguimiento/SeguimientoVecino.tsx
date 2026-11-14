@@ -2,9 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,8 +20,6 @@ import { useFocusEffect } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
-
-type FiltroVecino = "todos" | "recibido" | "en_revision" | "asignado" | "resuelto" | "rechazado";
 
 const estadoConfig: Record<
   Reporte["estado"],
@@ -44,15 +40,6 @@ const estadoConfig: Record<
   },
 };
 
-const filtroVecinoLabels: Array<{ value: FiltroVecino; label: string }> = [
-  { value: "todos", label: "Todos" },
-  { value: "recibido", label: "Recibidos" },
-  { value: "en_revision", label: "En revisión" },
-  { value: "asignado", label: "Asignados" },
-  { value: "resuelto", label: "Resueltos" },
-  { value: "rechazado", label: "Rechazados" },
-];
-
 const formatFecha = (fechaIso: string): string => {
   const fecha = new Date(fechaIso);
 
@@ -68,7 +55,6 @@ export default function SeguimientoVecino(): React.ReactElement {
     useState<Reporte | null>(null);
   const [misReportes, setMisReportes] = useState<Reporte[]>([]);
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
-  const [filtroActivo, setFiltroActivo] = useState<FiltroVecino>("todos");
   const [alturaAyuda, setAlturaAyuda] = useState(48);
   const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
     [],
@@ -93,6 +79,7 @@ export default function SeguimientoVecino(): React.ReactElement {
           if (!activo) return;
 
           setMisReportes(reportes);
+
           setTipos(tiposDisponibles);
         } catch {
           if (activo) {
@@ -143,12 +130,6 @@ export default function SeguimientoVecino(): React.ReactElement {
 
   const getTipoReporte = (tipoId: string) =>
     tipos.find((tipo) => tipo.id === tipoId) ?? null;
-
-  // Filtrar reportes según la pestaña seleccionada
-  const reportesFiltrados = misReportes.filter((reporte) => {
-    if (filtroActivo === "todos") return true;
-    return reporte.estado === filtroActivo;
-  });
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
@@ -214,31 +195,6 @@ export default function SeguimientoVecino(): React.ReactElement {
         <Text style={styles.headerTitle}>Mis Reclamos</Text>
       </View>
 
-      {/* FILTROS HORIZONTALES PARA EL VECINO */}
-      <View style={styles.filtrosContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtroScrollContent}
-        >
-          {filtroVecinoLabels.map((filtro) => {
-            const activo = filtroActivo === filtro.value;
-            return (
-              <TouchableOpacity
-                key={filtro.value}
-                onPress={() => setFiltroActivo(filtro.value)}
-                activeOpacity={0.85}
-                style={[styles.filtroButton, activo && styles.filtroButtonActivo]}
-              >
-                <TextoCorregido style={[styles.filtroTexto, activo && styles.filtroTextoActivo]}>
-                  {filtro.label}
-                </TextoCorregido>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       {cargando ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="small" color="#1F6FEB" />
@@ -254,14 +210,9 @@ export default function SeguimientoVecino(): React.ReactElement {
           </Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
-      ) : reportesFiltrados.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No hay reclamos en este estado</Text>
-          <Text style={styles.emptyText}>Probá cambiando de filtro o creando un nuevo reporte.</Text>
-        </View>
       ) : (
         <FlatList
-          data={reportesFiltrados}
+          data={misReportes}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -285,7 +236,7 @@ export default function SeguimientoVecino(): React.ReactElement {
               {reporteSeleccionado && (
                 <QRCode
                   value={reporteSeleccionado.codigo}
-                  size={160}
+                  size={200}
                   backgroundColor="white"
                   color="#111827"
                 />
@@ -306,25 +257,6 @@ export default function SeguimientoVecino(): React.ReactElement {
             >
               Muestre este código en ventanilla para consultar su trámite.
             </Text>
-
-            {/* FOTO DE RESOLUCIÓN DEL OPERADOR */}
-            {reporteSeleccionado?.fotos && (() => {
-              const fotoArreglo = (reporteSeleccionado.fotos as any[]).find(
-                (f) => f.momento === "arreglo"
-              );
-              if (!fotoArreglo) return null;
-
-              return (
-                <View style={styles.fotoArregloContainer}>
-                  <Text style={styles.fotoArregloTitle}>Foto de la solución:</Text>
-                  <Image
-                    source={{ uri: fotoArreglo.url }}
-                    style={styles.fotoArregloImg}
-                    resizeMode="cover"
-                  />
-                </View>
-              );
-            })()}
 
             <View style={styles.timelineContainer}>
               <Text style={styles.timelineTitle}>Seguimiento</Text>
@@ -411,33 +343,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     paddingRight: 4,
-  },
-  filtrosContainer: {
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    paddingVertical: 8,
-  },
-  filtroScrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filtroButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#EEF2F6",
-  },
-  filtroTexto: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  filtroButtonActivo: {
-    backgroundColor: "#1F6FEB",
-  },
-  filtroTextoActivo: {
-    color: "#FFFFFF",
   },
   listContent: {
     paddingHorizontal: 16,
@@ -583,48 +488,33 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 14,
+    marginBottom: 18,
   },
   qrContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 10,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    marginBottom: 10,
-  },
-  helperText: {
-    fontSize: 13,
-    color: "#374151",
-    textAlign: "center",
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  fotoArregloContainer: {
-    width: "100%",
     marginBottom: 14,
   },
-  fotoArregloTitle: {
+  helperText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 6,
-  },
-  fotoArregloImg: {
-    width: "100%",
-    height: 140,
-    borderRadius: 10,
+    color: "#374151",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
   },
   timelineContainer: {
     width: "100%",
     paddingHorizontal: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   timelineTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   timelineRow: {
     flexDirection: "row",
@@ -657,7 +547,7 @@ const styles = StyleSheet.create({
   },
   timelineLine: {
     width: 2,
-    height: 14,
+    height: 16,
     backgroundColor: "#D1D5DB",
     marginLeft: 4,
     marginVertical: 4,
