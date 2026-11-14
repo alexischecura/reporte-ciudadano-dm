@@ -12,11 +12,14 @@ import {
   haySoporteBiometrico,
 } from "@/servicios/biometria";
 import {
+  darDeBajaNotificaciones,
+  guardarAvisos,
+} from "@/servicios/notificaciones";
+import {
   guardarPreferenciaBiometria,
   obtenerPreferenciaBiometria,
 } from "@/servicios/preferencias";
 import { borrarToken, guardarToken, obtenerToken } from "@/servicios/sesion";
-import { darDeBajaNotificaciones, guardarAvisos } from "@/servicios/notificaciones";
 import { Usuario } from "@/tipos";
 import { esError } from "@/tipos/api";
 import {
@@ -27,9 +30,6 @@ import {
   useEffect,
   useState,
 } from "react";
-
-import { Usuario } from "@/tipos";
-import { esError } from "@/tipos/api";
 
 export type FaseSesion =
   | "cargando"
@@ -78,10 +78,16 @@ async function cargarSesionGuardada(): Promise<SesionRestaurada> {
         return { ...sinUsuario, fase: "anonimo" };
       }
       // Conservar el token ante fallos de red o del servidor.
-      return { ...sinUsuario, fase: "sin_conexion", error: respuesta.error.mensaje };
+      return {
+        ...sinUsuario,
+        fase: "sin_conexion",
+        error: respuesta.error.mensaje,
+      };
     }
 
-    const biometriaActiva = await obtenerPreferenciaBiometria(respuesta.datos.id);
+    const biometriaActiva = await obtenerPreferenciaBiometria(
+      respuesta.datos.id,
+    );
     return {
       usuario: respuesta.datos,
       fase: biometriaActiva ? "bloqueado" : "autenticado",
@@ -157,7 +163,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
       setErrorSesion("No pudimos recuperar la sesión. Probá nuevamente.");
       setFase("sin_conexion");
     }
-  }, []);
+  };
 
   useEffect(() => {
     let activo = true;
