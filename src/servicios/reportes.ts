@@ -172,3 +172,66 @@ export async function listarReportesMock(): Promise<Reporte[]> {
   const { MOCK_REPORTES } = await import("../mocks/reportes.mock");
   return MOCK_REPORTES;
 }
+
+
+
+export async function listarBandejaOperador(
+  query?: Record<string, string | number | boolean | undefined>,
+): Promise<any> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa de operador.");
+  }
+
+  return request<any>(`/bandeja${construirQuery(query)}`, {
+    method: "GET",
+    token,
+  });
+}
+
+
+
+export async function cambiarEstadoReporte(
+  reporteId: string,
+  estado: string,
+  comentario: string
+): Promise<any> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa para cambiar el estado.");
+  }
+
+  console.log("ENVIANDO A /estado ->", { estado, comentario }); // <-- Agregá esto
+
+  const respuesta = await request<any>(`/reportes/${reporteId}/estado`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ 
+      estado, 
+      comentario: comentario.trim() 
+    }),
+  });
+
+  console.log("RESPUESTA DE LA API /estado ->", respuesta); // <-- Y esto
+  return respuesta;
+}
+
+export async function asignarCuadrillaReporte(
+      reporteId: string,
+      cuadrillaId: string,
+      comentario: string
+    ): Promise<any> {
+      const token = await obtenerToken();
+      if (!token) {
+        throw new Error("No hay sesión activa para asignar cuadrilla.");
+      }
+
+      return request<any>(`/reportes/${reporteId}/cuadrilla`, {
+        method: "PATCH",
+        token,
+        body: JSON.stringify({ 
+          cuadrillaId, 
+          comentario: comentario.trim() 
+        }),
+      });
+    }

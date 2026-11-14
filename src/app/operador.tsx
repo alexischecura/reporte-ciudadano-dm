@@ -1,12 +1,42 @@
+import React, { useState, useCallback } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-
+import { useFocusEffect } from "expo-router";
 import ListaReportesOperador from "@/components/operador/ListaReportesOperador";
 import { TextoCorregido } from "@/components/texto-corregido";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { listarBandejaOperador } from "@/servicios/reportes";
 
 export default function OperadorScreen() {
+  const [reportes, setReportes] = useState([]);
+  const [estado, setEstado] = useState("");
+  const [zonaId, setZonaId] = useState("");
+  const [tipoId, setTipoId] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const cargarBandeja = async () => {
+    setLoading(true);
+    try {
+      const resultado = await listarBandejaOperador({
+        estado: estado || undefined,
+        zonaId: zonaId || undefined,
+        tipoid: tipoId || undefined,
+      });
+      setReportes(resultado.datos || resultado);
+    } catch (error) {
+      console.error("Error al cargar la bandeja del operador:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+  useCallback(() => {
+    cargarBandeja();
+  }, [estado, zonaId, tipoId])
+);
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -27,7 +57,7 @@ export default function OperadorScreen() {
       </SafeAreaView>
 
       <View style={styles.content}>
-        <ListaReportesOperador />
+        <ListaReportesOperador reportes={reportes} />
       </View>
     </View>
   );

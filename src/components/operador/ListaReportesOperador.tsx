@@ -1,6 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -14,14 +13,13 @@ import {
 } from "react-native";
 
 import { TextoCorregido } from "@/components/texto-corregido";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { MOCK_CUADRILLAS } from "../../mocks/cuadrillas.mock";
-import { MOCK_REPORTES } from "../../mocks/reportes.mock";
 import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
 import { MOCK_ZONAS } from "../../mocks/zonas.mock";
 import type { Reporte } from "../../tipos";
 import type { Cuadrilla } from "../../tipos/cuadrilla";
 import { vibracionExito } from "../../utils/haptica";
+import { listarBandejaOperador, cambiarEstadoReporte, asignarCuadrillaReporte } from "../../servicios/reportes";
 
 type FiltroEstado = "todos" | "pendiente" | "en_progreso" | "resuelto";
 
@@ -59,9 +57,25 @@ const filtroLabels: Array<{ value: FiltroEstado; label: string }> = [
   { value: "resuelto", label: "Resuelto" },
 ];
 
+const zonasFiltro = [
+  { id: "", nombre: "Todas las zonas" },
+  { id: "zon-norte", nombre: "Zona Norte" },
+  { id: "zon-sur", nombre: "Zona Sur" },
+  { id: "zon-este", nombre: "Zona Este" },
+  { id: "zon-oeste", nombre: "Zona Oeste" },
+];
+
+const tiposFiltro = [
+  { id: "", nombre: "Todos los tipos" },
+  { id: "tip-bache", nombre: "Bache" },
+  { id: "tip-basura", nombre: "Basura" },
+  { id: "tip-luminaria", nombre: "Luminaria" },
+  { id: "tip-agua", nombre: "Agua / Cloaca" },
+  { id: "tip-rama", nombre: "Árbol caído" },
+];
+
 const formatFecha = (fechaIso: string): string => {
   const fecha = new Date(fechaIso);
-
   return new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
     month: "2-digit",
@@ -75,45 +89,57 @@ const getTipoReporte = (tipoId: string) =>
 const getZona = (zonaId: string) =>
   MOCK_ZONAS.find((zona) => zona.id === zonaId) ?? null;
 
-const obtenerEstadoFiltrado = (estado: Reporte["estado"]): FiltroEstado => {
-  if (estado === "resuelto") return "resuelto";
-  if (estado === "recibido" || estado === "rechazado") return "pendiente";
-  return "en_progreso";
-};
-
 export default function ListaReportesOperador(): React.ReactElement {
+  const [reportes, setReportes] = useState<Reporte[]>([]);
   const [filtroActivo, setFiltroActivo] = useState<FiltroEstado>("todos");
-  const [reporteSeleccionado, setReporteSeleccionado] =
-    useState<Reporte | null>(null);
-  const [nuevoEstado, setNuevoEstado] =
-    useState<Reporte["estado"]>("en_revision");
+  const [zonaSeleccionada, setZonaSeleccionada] = useState<string>("");
+  const [tipoSeleccionado, setTipoSeleccionado] = useState<string>("");
+
+  const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(null);
+  const [nuevoEstado, setNuevoEstado] = useState<Reporte["estado"]>("en_revision");
   const [comentario, setComentario] = useState("");
-  const [cuadrillaSeleccionada, setCuadrillaSeleccionada] = useState<
-    string | null
-  >(null);
+  const [cuadrillaSeleccionada, setCuadrillaSeleccionada] = useState<string | null>(null);
   const [fotoResolucion, setFotoResolucion] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const cuadrillasDisponibles = useMemo(() => {
-    if (!reporteSeleccionado) {
-      return [];
+  const cargarBandeja = async () => {
+    setLoading(true);
+    try {
+      let estadoParam: string | undefined = undefined;
+      if (filtroActivo === "pendiente") estadoParam = "recibido";
+      else if (filtroActivo === "en_progreso") estadoParam = "asignado";
+      else if (filtroActivo === "en_revision") estadoParam = "en_revision";
+
+      const resultado = await listarBandejaOperador({
+        estado: estadoParam,
+        zonaId: zonaSeleccionada || undefined,
+        tipoId: tipoSeleccionado || undefined,
+      });
+
+      let listaReportes = resultado.datos || resultado;
+
+      if (filtroActivo === "resuelto") {
+        listaReportes = listaReportes.filter((r: any) => r.estado === "resuelto");
+      }
+
+      setReportes(listaReportes);
+    } catch (error) {
+      console.error("Error al obtener la bandeja:", error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return MOCK_CUADRILLAS.filter(
-      (cuadrilla) =>
-        cuadrilla.zonaId === reporteSeleccionado.zonaId && cuadrilla.activa,
-    );
-  }, [reporteSeleccionado]);
+  useEffect(() => {
+    cargarBandeja();
+  }, [filtroActivo, zonaSeleccionada, tipoSeleccionado]);
 
-  const reportesFiltrados = useMemo(() => {
-    if (filtroActivo === "todos") {
-      return MOCK_REPORTES;
-    }
-
-    return MOCK_REPORTES.filter((reporte) => {
-      const estadoFiltrado = obtenerEstadoFiltrado(reporte.estado);
-      return estadoFiltrado === filtroActivo;
-    });
-  }, [filtroActivo]);
+  const cuadrillasDisponibles = MOCK_CUADRILLAS.filter(
+    (cuadrilla) =>
+      reporteSeleccionado &&
+      cuadrilla.zonaId === reporteSeleccionado.zonaId &&
+      cuadrilla.activa,
+  );
 
   const abrirModal = (reporte: Reporte) => {
     setReporteSeleccionado(reporte);
@@ -146,7 +172,7 @@ export default function ListaReportesOperador(): React.ReactElement {
     Alert.alert("Sin imagen", "No se seleccionó ninguna foto del arreglo.");
   };
 
-  const guardarCambioEstado = () => {
+  const guardarCambioEstado = async () => {
     if (!reporteSeleccionado) {
       return;
     }
@@ -175,22 +201,48 @@ export default function ListaReportesOperador(): React.ReactElement {
       return;
     }
 
-    console.log("Cambio de estado:", {
-      reporteId: reporteSeleccionado.id,
-      nuevoEstado,
-      comentario: comentario.trim(),
-      cuadrillaId: cuadrillaSeleccionada,
-      fotoResolucion,
-    });
+    try {
+      setLoading(true);
 
-    vibracionExito();
-    cerrarModal();
+      if (nuevoEstado === "asignado" && cuadrillaSeleccionada) {
+        await asignarCuadrillaReporte(
+          reporteSeleccionado.id, 
+          cuadrillaSeleccionada,
+          comentario.trim()
+        );
+      } else {
+        await cambiarEstadoReporte(
+          reporteSeleccionado.id, 
+          nuevoEstado, 
+          comentario.trim()
+        );
+      }
+
+      vibracionExito();
+      cerrarModal();
+      await cargarBandeja();
+    } catch (error: any) {
+      console.error("Error al guardar el cambio:", error);
+      const mensajeApi = error?.message || "No se pudo actualizar el estado del reporte en el servidor.";
+      
+      Alert.alert(
+        "Transición no permitida",
+        mensajeApi.includes("estado actual") 
+          ? "El reporte no puede pasar a este estado desde su situación actual. Revisa el flujo de etapas." 
+          : mensajeApi
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
     const zona = getZona(item.zonaId);
-    const estado = estadoConfig[item.estado];
+    const estado = estadoConfig[item.estado] ?? estadoConfig.recibido;
+    
+    // Obtenemos la URL de la primera foto que subió el vecino (si existe)
+    const fotoUrl = item.fotos?.[0]?.url;
 
     return (
       <TouchableOpacity
@@ -208,14 +260,7 @@ export default function ListaReportesOperador(): React.ReactElement {
             </TextoCorregido>
           </View>
 
-          <View
-            style={[
-              styles.badge,
-              {
-                backgroundColor: estado.backgroundColor,
-              },
-            ]}
-          >
+          <View style={[styles.badge, { backgroundColor: estado.backgroundColor }]}>
             <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
               {estado.label}
             </TextoCorregido>
@@ -225,6 +270,11 @@ export default function ListaReportesOperador(): React.ReactElement {
         <TextoCorregido style={styles.descripcionTexto} numberOfLines={2}>
           {item.descripcion ?? "Sin descripción adicional."}
         </TextoCorregido>
+
+        {/* MINIATURA DE LA FOTO DEL VECINO */}
+        {fotoUrl ? (
+          <Image source={{ uri: fotoUrl }} style={styles.cardImage} resizeMode="cover" />
+        ) : null}
 
         <View style={styles.metaRow}>
           <TextoCorregido style={styles.metaLabel}>Fecha</TextoCorregido>
@@ -236,7 +286,7 @@ export default function ListaReportesOperador(): React.ReactElement {
         <View style={styles.metaRow}>
           <TextoCorregido style={styles.metaLabel}>Zona</TextoCorregido>
           <TextoCorregido style={styles.metaValue}>
-            {zona?.nombre ?? "Sin zona"}
+            {zona?.nombre ?? item.zonaId}
           </TextoCorregido>
         </View>
       </TouchableOpacity>
@@ -244,7 +294,8 @@ export default function ListaReportesOperador(): React.ReactElement {
   };
 
   return (
-    <SafeAreaView edges={["bottom", "left", "right"]} style={styles.container}>
+    <View style={styles.container}>
+      {/* 1. Filtros por Estado */}
       <View style={styles.filtrosContainer}>
         <ScrollView
           horizontal
@@ -253,23 +304,14 @@ export default function ListaReportesOperador(): React.ReactElement {
         >
           {filtroLabels.map((filtro) => {
             const activo = filtroActivo === filtro.value;
-
             return (
               <TouchableOpacity
                 key={filtro.value}
                 onPress={() => setFiltroActivo(filtro.value)}
                 activeOpacity={0.85}
-                style={[
-                  styles.filtroButton,
-                  activo && styles.filtroButtonActivo,
-                ]}
+                style={[styles.filtroButton, activo && styles.filtroButtonActivo]}
               >
-                <TextoCorregido
-                  style={[
-                    styles.filtroTexto,
-                    activo && styles.filtroTextoActivo,
-                  ]}
-                >
+                <TextoCorregido style={[styles.filtroTexto, activo && styles.filtroTextoActivo]}>
                   {filtro.label}
                 </TextoCorregido>
               </TouchableOpacity>
@@ -278,8 +320,45 @@ export default function ListaReportesOperador(): React.ReactElement {
         </ScrollView>
       </View>
 
+      {/* 2. Filtros secundarios (Zonas y Tipos limpios, sin duplicados) */}
+      <View style={styles.filtrosSecundariosContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
+          {zonasFiltro.map((z) => {
+            const activo = zonaSeleccionada === z.id;
+            return (
+              <TouchableOpacity
+                key={z.id}
+                onPress={() => setZonaSeleccionada(z.id)}
+                style={[styles.chipSecundario, activo && styles.chipSecundarioActivo]}
+              >
+                <TextoCorregido style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
+                  {z.nombre}
+                </TextoCorregido>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filtroScrollContent, { marginTop: 6 }]}>
+          {tiposFiltro.map((t) => {
+            const activo = tipoSeleccionado === t.id;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                onPress={() => setTipoSeleccionado(t.id)}
+                style={[styles.chipSecundario, activo && styles.chipSecundarioActivo]}
+              >
+                <TextoCorregido style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
+                  {t.nombre}
+                </TextoCorregido>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <FlatList
-        data={reportesFiltrados}
+        data={reportes}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
@@ -294,9 +373,7 @@ export default function ListaReportesOperador(): React.ReactElement {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <TextoCorregido style={styles.modalTitle}>
-              Cambiar estado
-            </TextoCorregido>
+            <TextoCorregido style={styles.modalTitle}>Cambiar estado</TextoCorregido>
 
             {reporteSeleccionado && (
               <TextoCorregido style={styles.modalCodigo}>
@@ -304,9 +381,7 @@ export default function ListaReportesOperador(): React.ReactElement {
               </TextoCorregido>
             )}
 
-            <TextoCorregido style={styles.sectionTitle}>
-              Nuevo Estado
-            </TextoCorregido>
+            <TextoCorregido style={styles.sectionTitle}>Nuevo Estado</TextoCorregido>
             <View style={styles.estadoOptions}>
               {Object.entries(estadoConfig).map(([estadoKey, config]) => {
                 const value = estadoKey as Reporte["estado"];
@@ -317,16 +392,10 @@ export default function ListaReportesOperador(): React.ReactElement {
                     key={value}
                     activeOpacity={0.8}
                     onPress={() => setNuevoEstado(value)}
-                    style={[
-                      styles.estadoOption,
-                      selected && styles.estadoOptionSelected,
-                    ]}
+                    style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
                   >
                     <TextoCorregido
-                      style={[
-                        styles.estadoOptionText,
-                        selected && styles.estadoOptionTextSelected,
-                      ]}
+                      style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
                     >
                       {config.label}
                     </TextoCorregido>
@@ -337,32 +406,19 @@ export default function ListaReportesOperador(): React.ReactElement {
 
             {nuevoEstado === "asignado" && (
               <View style={styles.extraSection}>
-                <TextoCorregido style={styles.sectionTitle}>
-                  Seleccionar Cuadrilla
-                </TextoCorregido>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.filtroScrollContent}
-                >
+                <TextoCorregido style={styles.sectionTitle}>Seleccionar Cuadrilla</TextoCorregido>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
                   {cuadrillasDisponibles.map((cuadrilla: Cuadrilla) => {
                     const selected = cuadrillaSeleccionada === cuadrilla.id;
-
                     return (
                       <TouchableOpacity
                         key={cuadrilla.id}
                         activeOpacity={0.8}
                         onPress={() => setCuadrillaSeleccionada(cuadrilla.id)}
-                        style={[
-                          styles.estadoOption,
-                          selected && styles.estadoOptionSelected,
-                        ]}
+                        style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
                       >
                         <TextoCorregido
-                          style={[
-                            styles.estadoOptionText,
-                            selected && styles.estadoOptionTextSelected,
-                          ]}
+                          style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
                         >
                           {cuadrilla.nombre}
                         </TextoCorregido>
@@ -375,37 +431,23 @@ export default function ListaReportesOperador(): React.ReactElement {
 
             {nuevoEstado === "resuelto" && (
               <View style={styles.extraSection}>
-                <TextoCorregido style={styles.sectionTitle}>
-                  Foto de resolución
-                </TextoCorregido>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={adjuntarFotoResolucion}
-                  style={styles.fotoButton}
-                >
+                <TextoCorregido style={styles.sectionTitle}>Foto de resolución</TextoCorregido>
+                <TouchableOpacity activeOpacity={0.8} onPress={adjuntarFotoResolucion} style={styles.fotoButton}>
                   <TextoCorregido style={styles.fotoButtonText}>
-                    {fotoResolucion
-                      ? "Cambiar foto"
-                      : "Adjuntar foto del arreglo"}
+                    {fotoResolucion ? "Cambiar foto" : "Adjuntar foto del arreglo"}
                   </TextoCorregido>
                 </TouchableOpacity>
 
                 {fotoResolucion && (
-                  <Image
-                    source={{ uri: fotoResolucion }}
-                    style={styles.previewImage}
-                    resizeMode="cover"
-                  />
+                  <Image source={{ uri: fotoResolucion }} style={styles.previewImage} resizeMode="cover" />
                 )}
               </View>
             )}
 
-            <TextoCorregido style={styles.sectionTitle}>
-              Comentario del Operador
-            </TextoCorregido>
+            <TextoCorregido style={styles.sectionTitle}>Comentario del Operador</TextoCorregido>
             <TextInput
               multiline
-              numberOfLines={5}
+              numberOfLines={4}
               value={comentario}
               onChangeText={setComentario}
               placeholder="Escribe el motivo del cambio de estado..."
@@ -415,269 +457,76 @@ export default function ListaReportesOperador(): React.ReactElement {
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={cerrarModal}
-                style={[styles.secondaryButton]}
-              >
-                <TextoCorregido style={styles.secondaryButtonText}>
-                  Cancelar
-                </TextoCorregido>
+              <TouchableOpacity activeOpacity={0.8} onPress={cerrarModal} style={styles.secondaryButton}>
+                <TextoCorregido style={styles.secondaryButtonText}>Cancelar</TextoCorregido>
               </TouchableOpacity>
 
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={guardarCambioEstado}
                 disabled={!comentario.trim()}
-                style={[
-                  styles.primaryButton,
-                  !comentario.trim() && styles.primaryButtonDisabled,
-                ]}
+                style={[styles.primaryButton, !comentario.trim() && styles.primaryButtonDisabled]}
               >
-                <TextoCorregido style={styles.primaryButtonText}>
-                  Guardar
-                </TextoCorregido>
+                <TextoCorregido style={styles.primaryButtonText}>Guardar</TextoCorregido>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F7FA",
-  },
-  filtrosContainer: {
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    paddingVertical: 12,
-  },
-  filtroScrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-    paddingRight: 20,
-  },
-  filtroButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#EEF2F6",
-    justifyContent: "center",
-    alignItems: "center",
-    maxWidth: 110,
-    overflow: "hidden",
-  },
-
-  filtroTexto: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#374151",
-    textAlign: "center",
-  },
-  filtroButtonActivo: {
-    backgroundColor: "#1F6FEB",
-  },
-  filtroTextoActivo: {
-    color: "#FFFFFF",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-    gap: 12,
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-    gap: 12,
-  },
-  titleWrap: {
-    flex: 1,
-  },
-  tipoTexto: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  codigoTexto: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  descripcionTexto: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#374151",
-    marginBottom: 12,
-  },
-
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    alignSelf: "flex-start",
-    alignItems: "center",
-    justifyContent: "center",
-    maxWidth: 105,
-    overflow: "hidden",
-  },
-
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  metaLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  metaValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#111827",
-    flexShrink: 1,
-    textAlign: "right",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 6,
-  },
-  modalCodigo: {
-    fontSize: 14,
-    color: "#4B5563",
-    marginBottom: 20,
-    fontWeight: "600",
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 10,
-  },
-  estadoOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 18,
-    gap: 8,
-  },
-  estadoOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#EEF2F6",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-  },
-  estadoOptionSelected: {
-    backgroundColor: "#E8F0FF",
-    borderColor: "#2563EB",
-  },
-  estadoOptionText: {
-    fontSize: 12,
-    color: "#374151",
-    fontWeight: "600",
-  },
-  estadoOptionTextSelected: {
-    color: "#1D4ED8",
-  },
-  extraSection: {
-    marginBottom: 18,
-  },
-  textInput: {
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: "#111827",
-    backgroundColor: "#F9FAFB",
-    marginBottom: 18,
-  },
-  fotoButton: {
-    backgroundColor: "#E8F0FF",
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  fotoButtonText: {
-    color: "#1D4ED8",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  previewImage: {
+  container: { flex: 1, backgroundColor: "#F5F7FA" },
+  filtrosContainer: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingVertical: 8 },
+  filtrosSecundariosContainer: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingVertical: 6 },
+  filtroScrollContent: { paddingHorizontal: 16, gap: 8 },
+  filtroButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#EEF2F6" },
+  filtroTexto: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  filtroButtonActivo: { backgroundColor: "#1F6FEB" },
+  filtroTextoActivo: { color: "#FFFFFF" },
+  chipSecundario: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
+  chipSecundarioActivo: { backgroundColor: "#DBEAFE", borderColor: "#3B82F6" },
+  chipTexto: { fontSize: 11, fontWeight: "500", color: "#4B5563" },
+  chipTextoActivo: { color: "#1D4ED8", fontWeight: "700" },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 12 },
+  card: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 12 },
+  titleWrap: { flex: 1 },
+  tipoTexto: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  codigoTexto: { marginTop: 2, fontSize: 12, color: "#6B7280", fontWeight: "500" },
+  descripcionTexto: { fontSize: 14, lineHeight: 20, color: "#374151", marginBottom: 12 },
+  badge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  badgeText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  metaLabel: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
+  metaValue: { fontSize: 12, fontWeight: "600", color: "#111827", textAlign: "right" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(17, 24, 39, 0.45)", justifyContent: "center", padding: 20 },
+  modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 20 },
+  modalTitle: { fontSize: 22, fontWeight: "700", color: "#111827", marginBottom: 6 },
+  modalCodigo: { fontSize: 14, color: "#4B5563", marginBottom: 16, fontWeight: "600" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#111827", marginBottom: 8 },
+  estadoOptions: { flexDirection: "row", flexWrap: "wrap", marginBottom: 14, gap: 8 },
+  estadoOption: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#EEF2F6", borderWidth: 1, borderColor: "#D1D5DB" },
+  estadoOptionSelected: { backgroundColor: "#E8F0FF", borderColor: "#2563EB" },
+  estadoOptionText: { fontSize: 12, color: "#374151", fontWeight: "600" },
+  estadoOptionTextSelected: { color: "#1D4ED8" },
+  extraSection: { marginBottom: 14 },
+  textInput: { minHeight: 100, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, padding: 12, fontSize: 14, backgroundColor: "#F9FAFB", marginBottom: 14 },
+  fotoButton: { backgroundColor: "#E8F0FF", borderRadius: 10, paddingVertical: 10, alignItems: "center", marginBottom: 10 },
+  fotoButtonText: { color: "#1D4ED8", fontWeight: "700", fontSize: 13 },
+  previewImage: { width: "100%", height: 150, borderRadius: 12, marginBottom: 10 },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
+  secondaryButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  secondaryButtonText: { color: "#111827", fontWeight: "600" },
+  primaryButton: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: "#1F6FEB" },
+  primaryButtonDisabled: { backgroundColor: "#93C5FD" },
+  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
+  cardImage: {
     width: "100%",
-    height: 180,
-    borderRadius: 12,
+    height: 140,
+    borderRadius: 10,
     marginBottom: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-  },
-  secondaryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#E5E7EB",
-  },
-  secondaryButtonText: {
-    color: "#111827",
-    fontWeight: "600",
-  },
-  primaryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#1F6FEB",
-  },
-  primaryButtonDisabled: {
-    backgroundColor: "#93C5FD",
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
   },
 });

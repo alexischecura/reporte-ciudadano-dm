@@ -13,6 +13,11 @@
     },
     "android": {
       "package": "com.uner.reporteciudadano",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDqGcbtEbzOLm5m7mcPKcGZV5u3NCgp6dw"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -68,6 +73,12 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Permití usar Face ID para desbloquear Reporte Ciudadano."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "AIzaSyDqGcbtEbzOLm5m7mcPKcGZV5u3NCgp6dw"
         }
       ],
       "expo-image",
