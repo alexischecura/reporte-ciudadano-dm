@@ -1,6 +1,7 @@
 import {
   type BorradorReporte,
   type CambioDeEstado,
+  type Coordenadas,
   type Reporte,
   type TipoDeReporte,
 } from "../tipos";
@@ -8,6 +9,7 @@ import { type RespuestaApi } from "../tipos/api";
 import { subirArchivoAlServidor } from "./almacenamiento";
 import { ApiError, request } from "./http";
 import { obtenerToken } from "./sesion";
+import { ESTADOS_REPORTE, RADIO_DUPLICADOS_METROS } from "@/utils/ubicacion";
 
 function mapearError(
   mensajeDefault: string,
@@ -57,6 +59,38 @@ export async function listarReportes(
   return request<Reporte[]>(`/reportes${construirQuery(query)}`);
 }
 
+// Recorrer páginas evita filtrar solamente la primera página del mapa.
+async function listarTodasLasPaginas(
+  path: string,
+  query: Record<string, string | number>,
+  porPagina: number,
+): Promise<Reporte[]> {
+  const reportes: Reporte[] = [];
+  for (let pagina = 1; ; pagina++) {
+    const lote = await request<Reporte[]>(
+      `${path}${construirQuery({ ...query, pagina, porPagina })}`,
+    );
+    reportes.push(...lote);
+    if (lote.length < porPagina) return reportes;
+  }
+}
+
+export async function listarReportesDelMapa(): Promise<Reporte[]> {
+  return listarTodasLasPaginas("/reportes", {
+    estado: ESTADOS_REPORTE.map(({ valor }) => valor).join(","),
+  }, 500);
+}
+
+export async function listarReportesCercanos(
+  coordenadas: Coordenadas,
+): Promise<Reporte[]> {
+  return listarTodasLasPaginas("/reportes/cercanos", {
+    latitud: coordenadas.latitud,
+    longitud: coordenadas.longitud,
+    radioMetros: RADIO_DUPLICADOS_METROS,
+  }, 100);
+}
+
 export async function listarMisReportes(): Promise<Reporte[]> {
   const token = await obtenerToken();
   if (!token) {
@@ -71,6 +105,39 @@ export async function listarMisReportes(): Promise<Reporte[]> {
 
 export async function obtenerReporte(id: string): Promise<Reporte> {
   return request<Reporte>(`/reportes/${id}`);
+}
+
+export async function obtenerEstadoAdhesionReporte(
+  reporteId: string,
+): Promise<boolean> {
+  const token = await obtenerToken();
+
+  if (!token) {
+    throw new Error("Tenés que iniciar sesión para consultar tu adhesión.");
+  }
+
+  const data = await request<{ adherido: boolean }>(
+    `/reportes/${reporteId}/adhesion`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+
+  return data.adherido;
+}
+
+export async function adherirseAReporte(reporteId: string): Promise<Reporte> {
+  const token = await obtenerToken();
+
+  if (!token) {
+    throw new Error("Tenés que iniciar sesión para adherirte a este reporte.");
+  }
+
+  return request<Reporte>(`/reportes/${reporteId}/adhesiones`, {
+    method: "POST",
+    token,
+  });
 }
 
 export async function obtenerCambiosDeReporte(

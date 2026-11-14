@@ -67,6 +67,7 @@
         }
       ],
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-local-authentication",
         {
@@ -90,9 +91,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "821f7b40-f7b4-48ee-80dd-6ccbd9f5edc2"
+        "projectId": "df414a62-3d16-4da1-9da2-a50c0078eee8"
       }
     },
-    "owner": "alangarciatalma"
+    "owner": "alexischecuras-team"
   }
 }

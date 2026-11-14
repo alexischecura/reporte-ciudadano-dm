@@ -50,30 +50,6 @@ async function copiarAReporte(
   return destino.uri;
 }
 
-function mimeTypeDesdeUri(uri: string): string {
-  const extension = uri.split(".").pop()?.toLowerCase() ?? "";
-
-  switch (extension) {
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "png":
-      return "image/png";
-    case "webp":
-      return "image/webp";
-    case "m4a":
-      return "audio/m4a";
-    case "aac":
-      return "audio/aac";
-    case "mp3":
-      return "audio/mpeg";
-    case "mp4":
-      return "video/mp4";
-    default:
-      return "application/octet-stream";
-  }
-}
-
 /** Guarda una foto en persistente y devuelve su URI. */
 export async function guardarFoto(
   uriTemporal: string,
