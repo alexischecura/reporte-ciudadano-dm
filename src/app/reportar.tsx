@@ -261,16 +261,6 @@ export default function ReportarScreen() {
           <View style={styles.bloque}>
             <ThemedText style={styles.seccion}>¿Dónde?</ThemedText>
             <SelectorUbicacion onLocationSelect={setUbicacion} />
-
-            {ubicacion && (
-              <Text>
-                Dirección: {ubicacion.direccion}
-                {"\n"}
-                Latitud: {ubicacion.latitude}
-                {"\n"}
-                Longitud: {ubicacion.longitude}
-              </Text>
-            )}
           </View>
 
           <View style={styles.bloque}>
