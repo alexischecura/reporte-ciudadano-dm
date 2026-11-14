@@ -25,6 +25,20 @@ import { SeccionFoto } from "../components/reportes/seccion-foto";
 import { useSesion } from "../contexts/sesion-context";
 import { esError } from "../tipos/api";
 
+// 1. Importar notificaciones
+import * as Notifications from 'expo-notifications';
+
+// 2. Configurar cómo se comportan las notificaciones
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 const DIRECTORIO_BORRADOR = `borrador-${Date.now()}`;
 
 export default function ReportarScreen() {
@@ -108,7 +122,20 @@ export default function ReportarScreen() {
         return;
       }
 
+      // Se guarda el éxito en el estado
       setExito(resultado.datos);
+
+      // --- CÓDIGO NUEVO: Disparar notificación local al celular ---
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "¡Reporte enviado exitosamente!",
+          body: `Tu reclamo con código ${resultado.datos.codigo} ya está en el sistema.`,
+          sound: true,
+        },
+        trigger: null, // trigger null hace que salte de forma inmediata
+      });
+      // -----------------------------------------------------------
+
     } catch {
       setErrorEnvio("Ocurrió un error al enviar el reporte. Reintentá.");
     } finally {
