@@ -56,7 +56,7 @@ const estadoConfig: Record<
   },
 };
 
-const filtroLabels: Array<{ value: FiltroEstado; label: string }> = [
+const filtroLabels: { value: FiltroEstado; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "pendiente", label: "Pendiente" },
   { value: "en_revision", label: "En revisión" },
@@ -134,12 +134,27 @@ export default function ListaReportesOperador(): React.ReactElement {
     }
   }, [filtroActivo, zonaSeleccionada, tipoSeleccionado]);
 
+  // Cargar bandeja cuando cambian los filtros
   useEffect(() => {
-    void cargarBandeja();
+    let activo = true;
+
+    async function ejecutarCarga() {
+      if (activo) {
+        await cargarBandeja();
+      }
+    }
+
+    void ejecutarCarga();
+
+    return () => {
+      activo = false;
+    };
   }, [cargarBandeja]);
 
-  // Cargar datos iniciales (Cuadrillas, Tipos, Zonas)
+
   useEffect(() => {
+    let activo = true;
+
     const cargarDatosIniciales = async () => {
       try {
         const [resCuadrillas, resTipos, resZonas] = await Promise.all([
@@ -147,14 +162,22 @@ export default function ListaReportesOperador(): React.ReactElement {
           listarTiposDeReporte(),
           listarZonas()
         ]);
+        if (!activo) return;
         setCuadrillas((resCuadrillas as any).datos || resCuadrillas);
         setTipos(resTipos);
         setZonas(resZonas);
       } catch (error) {
-        console.error("Error al cargar datos iniciales:", error);
+        if (activo) {
+          console.error("Error al cargar datos iniciales:", error);
+        }
       }
     };
+
     void cargarDatosIniciales();
+
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const cuadrillasDisponibles = cuadrillas.filter(
