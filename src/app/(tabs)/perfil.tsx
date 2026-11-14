@@ -40,8 +40,9 @@ export default function PerfilScreen() {
     setMensaje(null);
     try {
       await registrarNotificaciones(true);
+      await cambiarAvisos(true);
       const enviadas = await probarNotificaciones();
-      setMensaje(enviadas > 0 ? "Prueba solicitada. Comprobá si llega el aviso al teléfono." : "No se enviaron avisos. Verificá que estén activados en tu cuenta.");
+      setMensaje(enviadas > 0 ? "Expo aceptó la prueba. La entrega al teléfono todavía no está confirmada." : "No se enviaron avisos. Verificá que estén activados en tu cuenta.");
     } catch (error) {
       setMensaje(mensajeNotificaciones(error));
     } finally {
