@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -13,15 +13,20 @@ import {
 } from "react-native";
 
 import { TextoCorregido } from "@/components/texto-corregido";
-import { MOCK_CUADRILLAS } from "../../mocks/cuadrillas.mock";
-import { MOCK_TIPOS_DE_REPORTE } from "../../mocks/tipos-de-reporte.mock";
-import { MOCK_ZONAS } from "../../mocks/zonas.mock";
+import { 
+  listarBandejaOperador, 
+  cambiarEstadoReporte, 
+  asignarCuadrillaReporte, 
+  listarCuadrillas,
+  listarTiposDeReporte,
+  listarZonas,
+  listarReportes
+} from "../../servicios/reportes";
 import type { Reporte } from "../../tipos";
 import type { Cuadrilla } from "../../tipos/cuadrilla";
 import { vibracionExito } from "../../utils/haptica";
-import { listarBandejaOperador, cambiarEstadoReporte, asignarCuadrillaReporte } from "../../servicios/reportes";
 
-type FiltroEstado = "todos" | "pendiente" | "en_progreso" | "resuelto";
+type FiltroEstado = "todos" | "pendiente" | "en_progreso" | "resuelto" | "en_revision";
 
 const estadoConfig: Record<
   Reporte["estado"],
@@ -53,25 +58,9 @@ const estadoConfig: Record<
 const filtroLabels: Array<{ value: FiltroEstado; label: string }> = [
   { value: "todos", label: "Todos" },
   { value: "pendiente", label: "Pendiente" },
+  { value: "en_revision", label: "En revisión" },
   { value: "en_progreso", label: "En Progreso" },
   { value: "resuelto", label: "Resuelto" },
-];
-
-const zonasFiltro = [
-  { id: "", nombre: "Todas las zonas" },
-  { id: "zon-norte", nombre: "Zona Norte" },
-  { id: "zon-sur", nombre: "Zona Sur" },
-  { id: "zon-este", nombre: "Zona Este" },
-  { id: "zon-oeste", nombre: "Zona Oeste" },
-];
-
-const tiposFiltro = [
-  { id: "", nombre: "Todos los tipos" },
-  { id: "tip-bache", nombre: "Bache" },
-  { id: "tip-basura", nombre: "Basura" },
-  { id: "tip-luminaria", nombre: "Luminaria" },
-  { id: "tip-agua", nombre: "Agua / Cloaca" },
-  { id: "tip-rama", nombre: "Árbol caído" },
 ];
 
 const formatFecha = (fechaIso: string): string => {
@@ -83,14 +72,12 @@ const formatFecha = (fechaIso: string): string => {
   }).format(fecha);
 };
 
-const getTipoReporte = (tipoId: string) =>
-  MOCK_TIPOS_DE_REPORTE.find((tipo) => tipo.id === tipoId) ?? null;
-
-const getZona = (zonaId: string) =>
-  MOCK_ZONAS.find((zona) => zona.id === zonaId) ?? null;
-
 export default function ListaReportesOperador(): React.ReactElement {
   const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [cuadrillas, setCuadrillas] = useState<Cuadrilla[]>([]);
+  const [tipos, setTipos] = useState<any[]>([]);
+  const [zonas, setZonas] = useState<any[]>([]);
+  
   const [filtroActivo, setFiltroActivo] = useState<FiltroEstado>("todos");
   const [zonaSeleccionada, setZonaSeleccionada] = useState<string>("");
   const [tipoSeleccionado, setTipoSeleccionado] = useState<string>("");
@@ -102,39 +89,69 @@ export default function ListaReportesOperador(): React.ReactElement {
   const [fotoResolucion, setFotoResolucion] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const cargarBandeja = async () => {
+  // Funciones dinámicas que buscan en el estado local
+  const getTipoReporte = (tipoId: string) => tipos.find((t) => t.id === tipoId) ?? null;
+  const getZona = (zonaId: string) => zonas.find((z) => z.id === zonaId) ?? null;
+
+  // Cargar reportes de la bandeja filtrada (envuelta en useCallback para satisfacer a React)
+  const cargarBandeja = useCallback(async () => {
     setLoading(true);
     try {
-      let estadoParam: string | undefined = undefined;
-      if (filtroActivo === "pendiente") estadoParam = "recibido";
-      else if (filtroActivo === "en_progreso") estadoParam = "asignado";
-      else if (filtroActivo === "en_revision") estadoParam = "en_revision";
-
-      const resultado = await listarBandejaOperador({
-        estado: estadoParam,
-        zonaId: zonaSeleccionada || undefined,
-        tipoId: tipoSeleccionado || undefined,
-      });
-
-      let listaReportes = resultado.datos || resultado;
+      let listaReportes: Reporte[] = [];
 
       if (filtroActivo === "resuelto") {
-        listaReportes = listaReportes.filter((r: any) => r.estado === "resuelto");
+        const resultado = await listarReportes({
+          estado: "resuelto",
+          zonaId: zonaSeleccionada || undefined,
+          tipoId: tipoSeleccionado || undefined,
+        });
+        listaReportes = resultado;
+      } else {
+        let estadoParam: string | undefined = undefined;
+        if (filtroActivo === "pendiente") estadoParam = "recibido";
+        else if (filtroActivo === "en_progreso") estadoParam = "asignado";
+        else if (filtroActivo === "en_revision") estadoParam = "en_revision";
+
+        const resultado = await listarBandejaOperador({
+          estado: estadoParam,
+          zonaId: zonaSeleccionada || undefined,
+          tipoId: tipoSeleccionado || undefined,
+        });
+        listaReportes = (resultado as any).datos || resultado;
       }
 
       setReportes(listaReportes);
     } catch (error) {
-      console.error("Error al obtener la bandeja:", error);
+      console.error("Error al obtener los reportes:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    cargarBandeja();
   }, [filtroActivo, zonaSeleccionada, tipoSeleccionado]);
 
-  const cuadrillasDisponibles = MOCK_CUADRILLAS.filter(
+  useEffect(() => {
+    void cargarBandeja();
+  }, [cargarBandeja]);
+
+  // Cargar datos iniciales (Cuadrillas, Tipos, Zonas)
+  useEffect(() => {
+    const cargarDatosIniciales = async () => {
+      try {
+        const [resCuadrillas, resTipos, resZonas] = await Promise.all([
+          listarCuadrillas(),
+          listarTiposDeReporte(),
+          listarZonas()
+        ]);
+        setCuadrillas((resCuadrillas as any).datos || resCuadrillas);
+        setTipos(resTipos);
+        setZonas(resZonas);
+      } catch (error) {
+        console.error("Error al cargar datos iniciales:", error);
+      }
+    };
+    void cargarDatosIniciales();
+  }, []);
+
+  const cuadrillasDisponibles = cuadrillas.filter(
     (cuadrilla) =>
       reporteSeleccionado &&
       cuadrilla.zonaId === reporteSeleccionado.zonaId &&
@@ -214,7 +231,8 @@ export default function ListaReportesOperador(): React.ReactElement {
         await cambiarEstadoReporte(
           reporteSeleccionado.id, 
           nuevoEstado, 
-          comentario.trim()
+          comentario.trim(),
+          fotoResolucion 
         );
       }
 
@@ -240,8 +258,6 @@ export default function ListaReportesOperador(): React.ReactElement {
     const tipo = getTipoReporte(item.tipoId);
     const zona = getZona(item.zonaId);
     const estado = estadoConfig[item.estado] ?? estadoConfig.recibido;
-    
-    // Obtenemos la URL de la primera foto que subió el vecino (si existe)
     const fotoUrl = item.fotos?.[0]?.url;
 
     return (
@@ -271,7 +287,6 @@ export default function ListaReportesOperador(): React.ReactElement {
           {item.descripcion ?? "Sin descripción adicional."}
         </TextoCorregido>
 
-        {/* MINIATURA DE LA FOTO DEL VECINO */}
         {fotoUrl ? (
           <Image source={{ uri: fotoUrl }} style={styles.cardImage} resizeMode="cover" />
         ) : null}
@@ -295,7 +310,6 @@ export default function ListaReportesOperador(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      {/* 1. Filtros por Estado */}
       <View style={styles.filtrosContainer}>
         <ScrollView
           horizontal
@@ -320,40 +334,49 @@ export default function ListaReportesOperador(): React.ReactElement {
         </ScrollView>
       </View>
 
-      {/* 2. Filtros secundarios (Zonas y Tipos limpios, sin duplicados) */}
       <View style={styles.filtrosSecundariosContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
-          {zonasFiltro.map((z) => {
-            const activo = zonaSeleccionada === z.id;
-            return (
-              <TouchableOpacity
-                key={z.id}
-                onPress={() => setZonaSeleccionada(z.id)}
-                style={[styles.chipSecundario, activo && styles.chipSecundarioActivo]}
-              >
-                <TextoCorregido style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
-                  {z.nombre}
-                </TextoCorregido>
-              </TouchableOpacity>
-            );
-          })}
+          <TouchableOpacity
+            onPress={() => setZonaSeleccionada("")}
+            style={[styles.chipSecundario, zonaSeleccionada === "" && styles.chipSecundarioActivo]}
+          >
+            <TextoCorregido style={[styles.chipTexto, zonaSeleccionada === "" && styles.chipTextoActivo]}>
+              Todas las zonas
+            </TextoCorregido>
+          </TouchableOpacity>
+          {zonas.map((z) => (
+            <TouchableOpacity
+              key={z.id}
+              onPress={() => setZonaSeleccionada(z.id)}
+              style={[styles.chipSecundario, zonaSeleccionada === z.id && styles.chipSecundarioActivo]}
+            >
+              <TextoCorregido style={[styles.chipTexto, zonaSeleccionada === z.id && styles.chipTextoActivo]}>
+                {z.nombre}
+              </TextoCorregido>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filtroScrollContent, { marginTop: 6 }]}>
-          {tiposFiltro.map((t) => {
-            const activo = tipoSeleccionado === t.id;
-            return (
-              <TouchableOpacity
-                key={t.id}
-                onPress={() => setTipoSeleccionado(t.id)}
-                style={[styles.chipSecundario, activo && styles.chipSecundarioActivo]}
-              >
-                <TextoCorregido style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
-                  {t.nombre}
-                </TextoCorregido>
-              </TouchableOpacity>
-            );
-          })}
+          <TouchableOpacity
+            onPress={() => setTipoSeleccionado("")}
+            style={[styles.chipSecundario, tipoSeleccionado === "" && styles.chipSecundarioActivo]}
+          >
+            <TextoCorregido style={[styles.chipTexto, tipoSeleccionado === "" && styles.chipTextoActivo]}>
+              Todos los tipos
+            </TextoCorregido>
+          </TouchableOpacity>
+          {tipos.map((t) => (
+            <TouchableOpacity
+              key={t.id}
+              onPress={() => setTipoSeleccionado(t.id)}
+              style={[styles.chipSecundario, tipoSeleccionado === t.id && styles.chipSecundarioActivo]}
+            >
+              <TextoCorregido style={[styles.chipTexto, tipoSeleccionado === t.id && styles.chipTextoActivo]}>
+                {t.nombre}
+              </TextoCorregido>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
 
@@ -363,6 +386,10 @@ export default function ListaReportesOperador(): React.ReactElement {
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={10}
+        removeClippedSubviews={true}
       />
 
       <Modal
@@ -407,25 +434,31 @@ export default function ListaReportesOperador(): React.ReactElement {
             {nuevoEstado === "asignado" && (
               <View style={styles.extraSection}>
                 <TextoCorregido style={styles.sectionTitle}>Seleccionar Cuadrilla</TextoCorregido>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
-                  {cuadrillasDisponibles.map((cuadrilla: Cuadrilla) => {
-                    const selected = cuadrillaSeleccionada === cuadrilla.id;
-                    return (
-                      <TouchableOpacity
-                        key={cuadrilla.id}
-                        activeOpacity={0.8}
-                        onPress={() => setCuadrillaSeleccionada(cuadrilla.id)}
-                        style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
-                      >
-                        <TextoCorregido
-                          style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
+                {cuadrillasDisponibles.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtroScrollContent}>
+                    {cuadrillasDisponibles.map((cuadrilla: Cuadrilla) => {
+                      const selected = cuadrillaSeleccionada === cuadrilla.id;
+                      return (
+                        <TouchableOpacity
+                          key={cuadrilla.id}
+                          activeOpacity={0.8}
+                          onPress={() => setCuadrillaSeleccionada(cuadrilla.id)}
+                          style={[styles.estadoOption, selected && styles.estadoOptionSelected]}
                         >
-                          {cuadrilla.nombre}
-                        </TextoCorregido>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                          <TextoCorregido
+                            style={[styles.estadoOptionText, selected && styles.estadoOptionTextSelected]}
+                          >
+                            {cuadrilla.nombre}
+                          </TextoCorregido>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                ) : (
+                  <TextoCorregido style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>
+                    No hay cuadrillas activas para la zona de este reporte.
+                  </TextoCorregido>
+                )}
               </View>
             )}
 

@@ -168,12 +168,12 @@ export async function crearReporte(
   }
 }
 
+// NOTA: Se mantiene esta función por si se utiliza en alguna pantalla antigua, 
+// pero la bandeja del operador ya no dependerá de ella.
 export async function listarReportesMock(): Promise<Reporte[]> {
   const { MOCK_REPORTES } = await import("../mocks/reportes.mock");
   return MOCK_REPORTES;
 }
-
-
 
 export async function listarBandejaOperador(
   query?: Record<string, string | number | boolean | undefined>,
@@ -189,20 +189,18 @@ export async function listarBandejaOperador(
   });
 }
 
-
-
 export async function cambiarEstadoReporte(
   reporteId: string,
   estado: string,
-  comentario: string
+  comentario: string,
+  fotoUri?: string | null
 ): Promise<any> {
   const token = await obtenerToken();
   if (!token) {
     throw new Error("No hay sesión activa para cambiar el estado.");
   }
 
-  console.log("ENVIANDO A /estado ->", { estado, comentario }); // <-- Agregá esto
-
+  // 1. Enviamos el cambio de estado (el PATCH estricto que solo acepta estado y comentario)
   const respuesta = await request<any>(`/reportes/${reporteId}/estado`, {
     method: "PATCH",
     token,
@@ -212,26 +210,54 @@ export async function cambiarEstadoReporte(
     }),
   });
 
-  console.log("RESPUESTA DE LA API /estado ->", respuesta); // <-- Y esto
+  // 2. Si hay foto y es resuelto, la subimos y la enviamos a su endpoint específico
+  if (fotoUri && estado === "resuelto") {
+    const archivoSubido = await subirArchivoAlServidor(fotoUri, token);
+    
+    await request<any>(`/reportes/${reporteId}/fotos`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ 
+        url: archivoSubido.url 
+      }),
+    });
+  }
+
   return respuesta;
 }
 
 export async function asignarCuadrillaReporte(
-      reporteId: string,
-      cuadrillaId: string,
-      comentario: string
-    ): Promise<any> {
-      const token = await obtenerToken();
-      if (!token) {
-        throw new Error("No hay sesión activa para asignar cuadrilla.");
-      }
+  reporteId: string,
+  cuadrillaId: string,
+  comentario: string
+): Promise<any> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa para asignar cuadrilla.");
+  }
 
-      return request<any>(`/reportes/${reporteId}/cuadrilla`, {
-        method: "PATCH",
-        token,
-        body: JSON.stringify({ 
-          cuadrillaId, 
-          comentario: comentario.trim() 
-        }),
-      });
-    }
+  return request<any>(`/reportes/${reporteId}/cuadrilla`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ 
+      cuadrillaId, 
+      comentario: comentario.trim() 
+    }),
+  });
+}
+
+export async function listarCuadrillas(): Promise<any> {
+  const token = await obtenerToken();
+  if (!token) {
+    throw new Error("No hay sesión activa para ver las cuadrillas.");
+  }
+
+  return request<any>("/cuadrillas", {
+    method: "GET",
+    token,
+  });
+}
+
+export async function listarZonas(): Promise<any[]> {
+  return request<any[]>("/zonas", { method: "GET" });
+}

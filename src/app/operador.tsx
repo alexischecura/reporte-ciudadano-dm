@@ -57,7 +57,7 @@ export default function OperadorScreen() {
       </SafeAreaView>
 
       <View style={styles.content}>
-        <ListaReportesOperador reportes={reportes} />
+        <ListaReportesOperador/>
       </View>
     </View>
   );
