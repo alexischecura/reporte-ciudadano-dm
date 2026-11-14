@@ -1,5 +1,5 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
 import MapView, { MapPressEvent, Marker, Region } from "react-native-maps";
 
 import { useTheme } from "@/hooks/use-theme";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Ubicacion = {
   latitude: number;
@@ -75,6 +76,17 @@ export default function SelectorUbicacion({
   const obtenerDireccion = useCallback(
     async (latitude: number, longitude: number) => {
       try {
+        // Android requiere permisos para obtener una dirección.
+        const permiso = await Location.getForegroundPermissionsAsync();
+
+        if (permiso.status !== "granted") {
+          const solicitud = await Location.requestForegroundPermissionsAsync();
+
+          if (solicitud.status !== "granted") {
+            return "Dirección no disponible. Permití el acceso a la ubicación.";
+          }
+        }
+
         const resultados = await Location.reverseGeocodeAsync({
           latitude,
           longitude,
@@ -108,7 +120,9 @@ export default function SelectorUbicacion({
         return partes.length
           ? [...new Set(partes)].join(", ")
           : "Dirección no disponible";
-      } catch {
+      } catch (error) {
+        console.error("[UBICACION] Error al obtener dirección:", error);
+
         return "No se pudo obtener la dirección";
       }
     },

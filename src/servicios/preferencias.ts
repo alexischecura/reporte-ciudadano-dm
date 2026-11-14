@@ -1,12 +1,18 @@
-import Storage from "expo-sqlite/kv-store";
+import * as SecureStore from "expo-secure-store";
+
 import { Platform } from "react-native";
 
-// La preferencia es pública. Nunca guardar un token o contraseña acá.
-const claveBiometria = (usuarioId: string) => `biometria-habilitada:${usuarioId}`;
+const claveBiometria = (usuarioId: string) =>
+  `biometria-habilitada_${usuarioId.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
 
-export async function obtenerPreferenciaBiometria(usuarioId: string): Promise<boolean> {
+export async function obtenerPreferenciaBiometria(
+  usuarioId: string,
+): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  return (await Storage.getItem(claveBiometria(usuarioId))) === "true";
+
+  const valor = await SecureStore.getItemAsync(claveBiometria(usuarioId));
+
+  return valor === "true";
 }
 
 export async function guardarPreferenciaBiometria(
@@ -14,5 +20,9 @@ export async function guardarPreferenciaBiometria(
   habilitada: boolean,
 ): Promise<void> {
   if (Platform.OS === "web") return;
-  await Storage.setItem(claveBiometria(usuarioId), habilitada ? "true" : "false");
+
+  await SecureStore.setItemAsync(
+    claveBiometria(usuarioId),
+    habilitada ? "true" : "false",
+  );
 }

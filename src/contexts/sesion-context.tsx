@@ -89,7 +89,17 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
       const perfil = respuesta.datos;
       setUsuario(perfil);
-      const preferencia = await obtenerPreferenciaBiometria(perfil.id);
+      let preferencia = false;
+
+      try {
+        preferencia = await obtenerPreferenciaBiometria(perfil.id);
+      } catch (error) {
+        console.error(
+          "[SQLITE] Error al recuperar preferencia biométrica:",
+          error,
+        );
+      }
+
       setBiometriaActiva(preferencia);
       setFase(preferencia ? "bloqueado" : "autenticado");
     } catch {
