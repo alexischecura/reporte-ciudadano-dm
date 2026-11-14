@@ -4,6 +4,7 @@ import { SesionProvider, useSesion } from "@/contexts/sesion-context";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { ActivityIndicator, useColorScheme } from "react-native";
 
+import { GestorColaReportes } from "@/components/gestor-cola-reportes";
 import { GestorNotificaciones } from "@/components/gestor-notificaciones";
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { ThemedView } from "@/components/themed-view";
@@ -83,6 +84,7 @@ export default function RootLayout() {
         <AnimatedSplashOverlay />
         <NavegacionSegunSesion />
         <GestorNotificaciones />
+        <GestorColaReportes />
       </ThemeProvider>
     </SesionProvider>
   );

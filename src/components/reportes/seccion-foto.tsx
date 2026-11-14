@@ -11,7 +11,7 @@ import { CamaraReporte } from "./camara-reporte";
 interface Props {
   fotos: string[];
   directorioBorrador: string;
-  onCambiar: (fotos: string[]) => void;
+  onCambiar: (fotos: string[]) => void | Promise<void>;
 }
 
 export const MAX_FOTOS = 2;
@@ -33,7 +33,7 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
     try {
       const persistente = await guardarFoto(uriTemporal, directorioBorrador);
 
-      onCambiar([...fotos, persistente].slice(0, MAX_FOTOS));
+      await onCambiar([...fotos, persistente].slice(0, MAX_FOTOS));
     } catch {
       Alert.alert(
         "No se pudo guardar",
@@ -66,8 +66,8 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
     if (procesando) return;
 
     try {
-      await eliminarArchivo(uri);
-      onCambiar(fotos.filter((foto) => foto !== uri));
+      await onCambiar(fotos.filter((foto) => foto !== uri));
+      eliminarArchivo(uri);
     } catch {
       Alert.alert(
         "No se pudo eliminar",

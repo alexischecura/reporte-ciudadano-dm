@@ -1,13 +1,6 @@
 import type { Coordenadas } from "./reporte";
 
-/**
- * Borrador local del reporte antes de crearse.
- * Lo arma la pantalla de Juanchi (Módulo del Vecino) y lo consume
- * `src/servicios/reportes.ts` -> `crearReporte()`.
- *
- * TODO(Alexis): reemplazar coordenadas/direccion/zonaId mockeadas por GPS real
- * (expo-location) y guardar en SQLite con `sincronizado: false` para cola offline.
- */
+/** Contenido validado que se conserva en la cola hasta confirmar el envío. */
 export interface BorradorReporte {
   tipoId: string;
   descripcion: string | null;

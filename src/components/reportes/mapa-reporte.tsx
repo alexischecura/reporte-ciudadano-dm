@@ -1,5 +1,11 @@
 import * as Location from "expo-location";
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -28,6 +34,7 @@ type Props = {
   initialLocation?: {
     latitude: number;
     longitude: number;
+    direccion?: string;
   };
 };
 
@@ -138,11 +145,17 @@ export default function SelectorUbicacion({
   const seleccionarPunto = useCallback(
     async (latitude: number, longitude: number) => {
       const intento = ++seleccionId.current;
-      setSeleccion(null);
       onSelectionStart?.();
       setCargando(true);
       setError("");
 
+      const provisional = {
+        latitude,
+        longitude,
+        direccion: "Dirección no disponible",
+      };
+      setSeleccion(provisional);
+      onLocationSelect?.(provisional);
       try {
         const direccion = await obtenerDireccion(latitude, longitude);
         if (intento !== seleccionId.current) return;
@@ -170,7 +183,6 @@ export default function SelectorUbicacion({
 
   const usarPosicionActual = async () => {
     const intento = ++seleccionId.current;
-    setSeleccion(null);
     onSelectionStart?.();
     setModalVisible(false);
     setCargando(true);
@@ -222,6 +234,7 @@ export default function SelectorUbicacion({
   });
   const latitudInicial = initialLocation?.latitude;
   const longitudInicial = initialLocation?.longitude;
+  const direccionInicial = initialLocation?.direccion;
 
   useEffect(() => {
     if (latitudInicial == null || longitudInicial == null) return;
@@ -229,7 +242,8 @@ export default function SelectorUbicacion({
     const intento = ++seleccionId.current;
 
     async function cargarUbicacionInicial(latitude: number, longitude: number) {
-      const direccion = await obtenerDireccion(latitude, longitude);
+      const direccion =
+        direccionInicial ?? (await obtenerDireccion(latitude, longitude));
       if (!activo || intento !== seleccionId.current) return;
       const ubicacion = { latitude, longitude, direccion };
       setRegion({ ...CENTRO_GUALEGUAYCHU, latitude, longitude });
@@ -241,7 +255,7 @@ export default function SelectorUbicacion({
     return () => {
       activo = false;
     };
-  }, [latitudInicial, longitudInicial, obtenerDireccion]);
+  }, [latitudInicial, longitudInicial, direccionInicial, obtenerDireccion]);
 
   // Si el punto seleccionado está a menos de 25 m,
   // no duplicamos el marcador de ubicación actual.
@@ -432,7 +446,8 @@ export default function SelectorUbicacion({
       </Text>
       {reportesCercanos.length > 0 && (
         <Text style={styles.textoAyuda}>
-          Los marcadores naranjas son reclamos abiertos a 50 m o menos. Revisalos debajo antes de crear uno nuevo.
+          Los marcadores naranjas son reclamos abiertos a 50 m o menos.
+          Revisalos debajo antes de crear uno nuevo.
         </Text>
       )}
 
@@ -469,13 +484,19 @@ export default function SelectorUbicacion({
         </View>
       )}
 
-      {seleccion && fueraDeZonaMunicipal({ latitud: seleccion.latitude, longitud: seleccion.longitude }) && (
-        <View style={styles.errorBox} accessibilityRole="alert">
-          <Text style={styles.errorTexto}>
-            Esta ubicación está fuera de la zona de acción de la Municipalidad de Gualeguaychú. Seleccioná un punto dentro de la ciudad o sus alrededores.
-          </Text>
-        </View>
-      )}
+      {seleccion &&
+        fueraDeZonaMunicipal({
+          latitud: seleccion.latitude,
+          longitud: seleccion.longitude,
+        }) && (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <Text style={styles.errorTexto}>
+              Esta ubicación está fuera de la zona de acción de la Municipalidad
+              de Gualeguaychú. Seleccioná un punto dentro de la ciudad o sus
+              alrededores.
+            </Text>
+          </View>
+        )}
 
       <View style={styles.direccionBox}>
         <View

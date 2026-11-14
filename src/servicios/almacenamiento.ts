@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from "expo-file-system";
 
-import { request } from "./http";
+import { ApiError, request } from "./http";
 import { obtenerToken } from "./sesion";
 
 /**
@@ -75,7 +75,11 @@ export async function subirArchivoAlServidor(uriLocal: string, token?: string) {
 
   const archivo = new File(uriLocal);
   if (!archivo.exists)
-    throw new Error("El archivo local no existe o ya fue borrado.");
+    throw new ApiError(
+      "Falta un archivo local. El reporte se conserva, pero necesita revisión.",
+      422,
+      "ARCHIVO_LOCAL_NO_ENCONTRADO",
+    );
 
   const form = new FormData();
   form.append("archivo", archivo as any);
@@ -125,4 +129,10 @@ export function limpiarReporte(idReporte: string): void {
   } catch {
     // Mejor esfuerzo.
   }
+}
+
+/** La cola necesita saber si falló la limpieza para reintentar tras reiniciar. */
+export function limpiarReporteEstricto(id: string): void {
+  const dir = directorioReporte(id);
+  if (dir.exists) dir.delete();
 }

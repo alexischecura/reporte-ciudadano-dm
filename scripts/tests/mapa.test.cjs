@@ -84,6 +84,8 @@ function servicio(request) {
     "./http": { request },
     "./almacenamiento": {},
     "./sesion": {},
+    "./offline/catalogo": {},
+    "./offline/reportes-locales": {},
     "@/utils/ubicacion": geo,
   });
 }

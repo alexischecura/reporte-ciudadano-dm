@@ -57,6 +57,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test:offline": "node scripts/tests/offline.test.cjs",
     "test:notificaciones": "node --test scripts/tests/notificaciones.test.cjs",
     "test:mapa": "node --test scripts/tests/mapa.test.cjs"
   },

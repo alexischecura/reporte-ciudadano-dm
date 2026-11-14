@@ -8,7 +8,13 @@ import {
 import { type RespuestaApi } from "../tipos/api";
 import { subirArchivoAlServidor } from "./almacenamiento";
 import { ApiError, request } from "./http";
-import { obtenerToken } from "./sesion";
+import { obtenerToken, obtenerUsuarioGuardado } from "./sesion";
+import { actualizarTipos, tiposGuardados } from "./offline/catalogo";
+import {
+  guardarEnCola,
+  guardarReportesConfirmados,
+  misReportesLocales,
+} from "./offline/reportes-locales";
 import { ESTADOS_REPORTE, RADIO_DUPLICADOS_METROS } from "@/utils/ubicacion";
 
 function mapearError(
@@ -50,7 +56,9 @@ function construirQuery(
 }
 
 export async function listarTiposDeReporte(): Promise<TipoDeReporte[]> {
-  return request<TipoDeReporte[]>("/tipos-de-reporte");
+  const tipos = tiposGuardados();
+  void actualizarTipos().catch(() => undefined);
+  return tipos;
 }
 
 export async function listarReportes(
@@ -64,11 +72,13 @@ async function listarTodasLasPaginas(
   path: string,
   query: Record<string, string | number>,
   porPagina: number,
+  opciones: { token?: string; timeoutMs?: number } = {},
 ): Promise<Reporte[]> {
   const reportes: Reporte[] = [];
   for (let pagina = 1; ; pagina++) {
     const lote = await request<Reporte[]>(
       `${path}${construirQuery({ ...query, pagina, porPagina })}`,
+      opciones,
     );
     reportes.push(...lote);
     if (lote.length < porPagina) return reportes;
@@ -76,19 +86,28 @@ async function listarTodasLasPaginas(
 }
 
 export async function listarReportesDelMapa(): Promise<Reporte[]> {
-  return listarTodasLasPaginas("/reportes", {
-    estado: ESTADOS_REPORTE.map(({ valor }) => valor).join(","),
-  }, 500);
+  return listarTodasLasPaginas(
+    "/reportes",
+    {
+      estado: ESTADOS_REPORTE.map(({ valor }) => valor).join(","),
+    },
+    500,
+  );
 }
 
 export async function listarReportesCercanos(
   coordenadas: Coordenadas,
 ): Promise<Reporte[]> {
-  return listarTodasLasPaginas("/reportes/cercanos", {
-    latitud: coordenadas.latitud,
-    longitud: coordenadas.longitud,
-    radioMetros: RADIO_DUPLICADOS_METROS,
-  }, 100);
+  return listarTodasLasPaginas(
+    "/reportes/cercanos",
+    {
+      latitud: coordenadas.latitud,
+      longitud: coordenadas.longitud,
+      radioMetros: RADIO_DUPLICADOS_METROS,
+    },
+    100,
+    { timeoutMs: 8000 },
+  );
 }
 
 export async function listarMisReportes(): Promise<Reporte[]> {
@@ -97,10 +116,26 @@ export async function listarMisReportes(): Promise<Reporte[]> {
     throw new Error("No hay sesión activa para ver tus reportes.");
   }
 
-  return request<Reporte[]>("/yo/reportes", {
-    method: "GET",
-    token,
-  });
+  const usuario = await obtenerUsuarioGuardado();
+  if (!usuario) throw new Error("No se pudo recuperar tu cuenta.");
+  try {
+    const reportes = await listarTodasLasPaginas("/yo/reportes", {}, 100, {
+      token,
+      timeoutMs: 15_000,
+    });
+    if ((await obtenerToken()) !== token) throw new Error("La sesión cambió.");
+    guardarReportesConfirmados(usuario.id, reportes);
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.status > 0 &&
+      error.status < 500 &&
+      error.status !== 408 &&
+      error.status !== 429
+    )
+      throw error;
+  }
+  return misReportesLocales(usuario.id);
 }
 
 export async function obtenerReporte(id: string): Promise<Reporte> {
@@ -146,96 +181,31 @@ export async function obtenerCambiosDeReporte(
   return request<CambioDeEstado[]>(`/reportes/${reporteId}/cambios`);
 }
 
-export function fechaLocalIso(fecha = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offMin = -fecha.getTimezoneOffset();
-  const signo = offMin >= 0 ? "+" : "-";
-  const abs = Math.abs(offMin);
-  const off = `${signo}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
-  return (
-    `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}` +
-    `T${pad(fecha.getHours())}:${pad(fecha.getMinutes())}:${pad(fecha.getSeconds())}${off}`
-  );
-}
+export { fechaLocalIso } from "./offline/reportes-locales";
 
+/** Primero confirma la escritura local. El gestor de cola se encarga del envío. */
 export async function crearReporte(
   borrador: BorradorReporte,
   usuarioId: string,
+  identidad?: { id: string; creadoEn: string },
 ): Promise<RespuestaApi<Reporte>> {
-  if (!usuarioId?.trim()) {
-    return {
-      error: {
-        codigo: "NO_AUTENTICADO",
-        mensaje: "Tenés que iniciar sesión para crear un reporte.",
-      },
-    };
-  }
-
-  if (borrador.fotos.length < 1) {
-    return {
-      error: {
-        codigo: "FOTO_REQUERIDA",
-        mensaje: "El reporte necesita al menos una foto.",
-      },
-    };
-  }
-
   try {
-    const token = await obtenerToken();
-    if (!token) {
-      return {
-        error: {
-          codigo: "NO_AUTENTICADO",
-          mensaje: "Tu sesión expiró. Iniciá sesión nuevamente.",
-        },
-      };
-    }
-
-    const fotosSubidas = await Promise.all(
-      borrador.fotos.map(async (uri, index) => {
-        const { url } = await subirArchivoAlServidor(uri, token);
-        return {
-          id: `fot-${Date.now()}-${index}`,
-          url,
-        };
-      }),
-    );
-
-    const audioUrlSubido = borrador.audioUrl
-      ? (await subirArchivoAlServidor(borrador.audioUrl, token)).url
-      : null;
-
-    const payload = {
-      id: `rep-${Date.now()}`,
-      tipoId: borrador.tipoId,
-      descripcion: borrador.descripcion ?? undefined,
-      audioUrl: audioUrlSubido,
-      fotos: fotosSubidas,
-      coordenadas: {
-        latitud: borrador.coordenadas.latitud,
-        longitud: borrador.coordenadas.longitud,
-      },
-      direccion: borrador.direccion ?? "Dirección no disponible",
-      creadoEn: fechaLocalIso(),
-    };
-
-    const data = await request<Reporte>("/reportes", {
-      method: "POST",
-      token,
-      body: JSON.stringify(payload),
-    });
-
-    return { datos: data };
+    const perfil = await obtenerUsuarioGuardado();
+    if (!usuarioId || perfil?.id !== usuarioId)
+      throw new Error("Primero iniciá sesión con tu cuenta.");
+    return { datos: guardarEnCola(borrador, usuarioId, identidad) };
   } catch (error) {
     return mapearError(
-      "No se pudo crear el reporte.",
-      "REPORTE_NO_CREADO",
+      error instanceof Error
+        ? error.message
+        : "No pudimos guardar el reporte en este teléfono.",
+      "REPORTE_NO_GUARDADO",
       error,
     );
   }
 }
 
-// NOTA: Se mantiene esta función por si se utiliza en alguna pantalla antigua, 
+// NOTA: Se mantiene esta función por si se utiliza en alguna pantalla antigua,
 // pero la bandeja del operador ya no dependerá de ella.
 export async function listarReportesMock(): Promise<Reporte[]> {
   const { MOCK_REPORTES } = await import("../mocks/reportes.mock");
@@ -260,7 +230,7 @@ export async function cambiarEstadoReporte(
   reporteId: string,
   estado: string,
   comentario: string,
-  fotoUri?: string | null
+  fotoUri?: string | null,
 ): Promise<any> {
   const token = await obtenerToken();
   if (!token) {
@@ -271,21 +241,21 @@ export async function cambiarEstadoReporte(
   const respuesta = await request<any>(`/reportes/${reporteId}/estado`, {
     method: "PATCH",
     token,
-    body: JSON.stringify({ 
-      estado, 
-      comentario: comentario.trim() 
+    body: JSON.stringify({
+      estado,
+      comentario: comentario.trim(),
     }),
   });
 
   // 2. Si hay foto y es resuelto, la subimos y la enviamos a su endpoint específico
   if (fotoUri && estado === "resuelto") {
     const archivoSubido = await subirArchivoAlServidor(fotoUri, token);
-    
+
     await request<any>(`/reportes/${reporteId}/fotos`, {
       method: "POST",
       token,
-      body: JSON.stringify({ 
-        url: archivoSubido.url 
+      body: JSON.stringify({
+        url: archivoSubido.url,
       }),
     });
   }
@@ -296,7 +266,7 @@ export async function cambiarEstadoReporte(
 export async function asignarCuadrillaReporte(
   reporteId: string,
   cuadrillaId: string,
-  comentario: string
+  comentario: string,
 ): Promise<any> {
   const token = await obtenerToken();
   if (!token) {
@@ -306,9 +276,9 @@ export async function asignarCuadrillaReporte(
   return request<any>(`/reportes/${reporteId}/cuadrilla`, {
     method: "PATCH",
     token,
-    body: JSON.stringify({ 
-      cuadrillaId, 
-      comentario: comentario.trim() 
+    body: JSON.stringify({
+      cuadrillaId,
+      comentario: comentario.trim(),
     }),
   });
 }
@@ -329,11 +299,10 @@ export async function listarZonas(): Promise<any[]> {
   return request<any[]>("/zonas", { method: "GET" });
 }
 
-
 export async function marcarReporteComoDuplicado(
   reporteId: string,
   originalInput: string,
-  comentario: string
+  comentario: string,
 ): Promise<any> {
   const token = await obtenerToken();
   if (!token) {
@@ -355,7 +324,7 @@ export async function marcarReporteComoDuplicado(
       // Fallback: buscamos en el listado general si el endpoint anterior no estuviera disponible
       const todos = await listarReportes();
       const encontrado = todos.find(
-        (r) => r.codigo.toLowerCase() === originalInput.toLowerCase()
+        (r) => r.codigo.toLowerCase() === originalInput.toLowerCase(),
       );
       if (encontrado) {
         originalId = encontrado.id;

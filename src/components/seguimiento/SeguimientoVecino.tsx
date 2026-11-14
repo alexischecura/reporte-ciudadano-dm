@@ -1,6 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -17,13 +23,31 @@ import {
 } from "../../servicios/reportes";
 import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
 
+import { useSesion } from "@/contexts/sesion-context";
+import {
+  colaReportes,
+  leerEstadoLocal,
+  misReportesLocales,
+} from "@/servicios/offline/reportes-locales";
+import {
+  revisionLocal,
+  suscribirDatosLocales,
+} from "@/servicios/offline/persistencia";
+import { tiposGuardados } from "@/servicios/offline/catalogo";
 import { TextoCorregido } from "@/components/texto-corregido";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
 
-type FiltroVecino = "todos" | "recibido" | "en_revision" | "asignado" | "resuelto" | "rechazado";
+type FiltroVecino =
+  | "todos"
+  | "pendientes"
+  | "recibido"
+  | "en_revision"
+  | "asignado"
+  | "resuelto"
+  | "rechazado";
 
 const estadoConfig: Record<
   Reporte["estado"],
@@ -44,8 +68,9 @@ const estadoConfig: Record<
   },
 };
 
-const filtroVecinoLabels: Array<{ value: FiltroVecino; label: string }> = [
+const filtroVecinoLabels: { value: FiltroVecino; label: string }[] = [
   { value: "todos", label: "Todos" },
+  { value: "pendientes", label: "Pendientes de envío" },
   { value: "recibido", label: "Recibidos" },
   { value: "en_revision", label: "En revisión" },
   { value: "asignado", label: "Asignados" },
@@ -66,7 +91,16 @@ const formatFecha = (fechaIso: string): string => {
 export default function SeguimientoVecino(): React.ReactElement {
   const [reporteSeleccionado, setReporteSeleccionado] =
     useState<Reporte | null>(null);
-  const [misReportes, setMisReportes] = useState<Reporte[]>([]);
+  const { usuario, modoOffline } = useSesion();
+  const usuarioId = usuario?.id;
+  const revision = useSyncExternalStore(
+    suscribirDatosLocales,
+    revisionLocal,
+    revisionLocal,
+  );
+  void revision;
+  const misReportes = usuarioId ? misReportesLocales(usuarioId) : [];
+  const enviosLocales = usuarioId ? leerEstadoLocal(usuarioId).envios : [];
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [filtroActivo, setFiltroActivo] = useState<FiltroVecino>("todos");
   const [alturaAyuda, setAlturaAyuda] = useState(48);
@@ -78,21 +112,22 @@ export default function SeguimientoVecino(): React.ReactElement {
 
   useFocusEffect(
     useCallback(() => {
+      if (!usuarioId) return;
       let activo = true;
 
       async function cargarDatos() {
         try {
-          setCargando(true);
+          setCargando(false);
+          setTipos(tiposGuardados());
           setError(null);
 
-          const [reportes, tiposDisponibles] = await Promise.all([
+          const [, tiposDisponibles] = await Promise.all([
             listarMisReportes(),
             listarTiposDeReporte(),
           ]);
 
           if (!activo) return;
 
-          setMisReportes(reportes);
           setTipos(tiposDisponibles);
         } catch {
           if (activo) {
@@ -110,11 +145,11 @@ export default function SeguimientoVecino(): React.ReactElement {
       return () => {
         activo = false;
       };
-    }, []),
+    }, [usuarioId, setError, setTipos, setCargando]),
   );
 
   useEffect(() => {
-    if (!reporteSeleccionado) return;
+    if (!reporteSeleccionado?.sincronizado) return;
 
     let activo = true;
 
@@ -147,12 +182,21 @@ export default function SeguimientoVecino(): React.ReactElement {
   // Filtrar reportes según la pestaña seleccionada
   const reportesFiltrados = misReportes.filter((reporte) => {
     if (filtroActivo === "todos") return true;
-    return reporte.estado === filtroActivo;
+    if (filtroActivo === "pendientes") return !reporte.sincronizado;
+    return reporte.sincronizado && reporte.estado === filtroActivo;
   });
 
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
     const estado = estadoConfig[item.estado];
+    const envio = enviosLocales.find((e) => e.id === item.id);
+    const etiqueta = item.sincronizado
+      ? estado.label
+      : envio?.estado === "enviando"
+        ? "Enviando"
+        : envio?.estado === "error" || envio?.estado === "sesion"
+          ? "Revisar envío"
+          : "Pendiente de envío";
 
     return (
       <View style={styles.card}>
@@ -165,7 +209,7 @@ export default function SeguimientoVecino(): React.ReactElement {
               textBreakStrategy="simple"
               android_hyphenationFrequency="none"
             >
-              {item.codigo}
+              {item.codigo || "Código disponible al confirmarse el envío"}
             </Text>
           </View>
 
@@ -178,7 +222,7 @@ export default function SeguimientoVecino(): React.ReactElement {
             ]}
           >
             <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
-              {estado.label}
+              {etiqueta}
             </TextoCorregido>
           </View>
         </View>
@@ -191,9 +235,72 @@ export default function SeguimientoVecino(): React.ReactElement {
           </TextoCorregido>
         </View>
 
+        {!item.sincronizado && (
+          <View style={{ gap: 8, marginBottom: 12 }}>
+            <Text>{item.direccion}</Text>
+            {item.fotos[0] && (
+              <Image
+                source={{ uri: item.fotos[0].url }}
+                style={{ width: "100%", height: 120, borderRadius: 8 }}
+              />
+            )}
+            <Text>
+              {envio?.error ??
+                "Guardado en este teléfono. Se enviará automáticamente al recuperar conexión mientras uses la app."}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           activeOpacity={0.85}
+          disabled={!item.sincronizado && envio?.estado === "enviando"}
           onPress={async () => {
+            if (!item.sincronizado && usuarioId) {
+              if (envio?.estado === "error") {
+                const corregir = (reemplazar = false) => {
+                  try {
+                    colaReportes.corregir(usuarioId, item.id, reemplazar);
+                    router.push("/reportar");
+                  } catch (e) {
+                    setError(
+                      e instanceof Error
+                        ? e.message
+                        : "No pudimos recuperar el reporte para corregirlo.",
+                    );
+                  }
+                };
+                const otro = leerEstadoLocal(usuarioId).borrador;
+                if (
+                  otro &&
+                  (otro.tipoId ||
+                    otro.descripcion ||
+                    otro.fotos.length ||
+                    otro.audioUrl ||
+                    otro.ubicacion)
+                ) {
+                  Alert.alert(
+                    "¿Reemplazar el borrador actual?",
+                    "Se descartará el borrador que estabas completando para corregir este reporte. Los demás envíos se conservan.",
+                    [
+                      { text: "Conservar", style: "cancel" },
+                      {
+                        text: "Reemplazar borrador",
+                        style: "destructive",
+                        onPress: () => corregir(true),
+                      },
+                    ],
+                  );
+                } else corregir();
+                return;
+              }
+              try {
+                colaReportes.reintentar(usuarioId, item.id);
+              } catch {
+                setError(
+                  "No pudimos guardar el reintento. Tus archivos se conservan.",
+                );
+              }
+              return;
+            }
             await vibracionSuave();
             setHistorialReporte([]);
             setReporteSeleccionado(item);
@@ -201,7 +308,11 @@ export default function SeguimientoVecino(): React.ReactElement {
           style={styles.primaryButton}
         >
           <TextoCorregido style={styles.primaryButtonText}>
-            Ver Seguimiento y QR
+            {item.sincronizado
+              ? "Ver Seguimiento y QR"
+              : envio?.estado === "error"
+                ? "Corregir reporte"
+                : "Reintentar envío"}
           </TextoCorregido>
         </TouchableOpacity>
       </View>
@@ -214,6 +325,16 @@ export default function SeguimientoVecino(): React.ReactElement {
         <Text style={styles.headerTitle}>Mis Reclamos</Text>
       </View>
 
+      {modoOffline && (
+        <Text style={{ padding: 12 }}>
+          Sin conexión. Mostramos los reclamos guardados en este teléfono.
+        </Text>
+      )}
+      {error && misReportes.length > 0 && (
+        <Text style={{ padding: 12 }}>
+          {error} Conservamos tus reportes locales.
+        </Text>
+      )}
       {/* FILTROS HORIZONTALES PARA EL VECINO */}
       <View style={styles.filtrosContainer}>
         <ScrollView
@@ -228,9 +349,17 @@ export default function SeguimientoVecino(): React.ReactElement {
                 key={filtro.value}
                 onPress={() => setFiltroActivo(filtro.value)}
                 activeOpacity={0.85}
-                style={[styles.filtroButton, activo && styles.filtroButtonActivo]}
+                style={[
+                  styles.filtroButton,
+                  activo && styles.filtroButtonActivo,
+                ]}
               >
-                <TextoCorregido style={[styles.filtroTexto, activo && styles.filtroTextoActivo]}>
+                <TextoCorregido
+                  style={[
+                    styles.filtroTexto,
+                    activo && styles.filtroTextoActivo,
+                  ]}
+                >
                   {filtro.label}
                 </TextoCorregido>
               </TouchableOpacity>
@@ -247,7 +376,7 @@ export default function SeguimientoVecino(): React.ReactElement {
             Cargando tus reclamos
           </TextoCorregido>
         </View>
-      ) : error ? (
+      ) : error && misReportes.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
             No pudimos cargar tu seguimiento
@@ -257,7 +386,9 @@ export default function SeguimientoVecino(): React.ReactElement {
       ) : reportesFiltrados.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No hay reclamos en este estado</Text>
-          <Text style={styles.emptyText}>Probá cambiando de filtro o creando un nuevo reporte.</Text>
+          <Text style={styles.emptyText}>
+            Probá cambiando de filtro o creando un nuevo reporte.
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -308,23 +439,26 @@ export default function SeguimientoVecino(): React.ReactElement {
             </Text>
 
             {/* FOTO DE RESOLUCIÓN DEL OPERADOR */}
-            {reporteSeleccionado?.fotos && (() => {
-              const fotoArreglo = (reporteSeleccionado.fotos as any[]).find(
-                (f) => f.momento === "arreglo"
-              );
-              if (!fotoArreglo) return null;
+            {reporteSeleccionado?.fotos &&
+              (() => {
+                const fotoArreglo = (reporteSeleccionado.fotos as any[]).find(
+                  (f) => f.momento === "arreglo",
+                );
+                if (!fotoArreglo) return null;
 
-              return (
-                <View style={styles.fotoArregloContainer}>
-                  <Text style={styles.fotoArregloTitle}>Foto de la solución:</Text>
-                  <Image
-                    source={{ uri: fotoArreglo.url }}
-                    style={styles.fotoArregloImg}
-                    resizeMode="cover"
-                  />
-                </View>
-              );
-            })()}
+                return (
+                  <View style={styles.fotoArregloContainer}>
+                    <Text style={styles.fotoArregloTitle}>
+                      Foto de la solución:
+                    </Text>
+                    <Image
+                      source={{ uri: fotoArreglo.url }}
+                      style={styles.fotoArregloImg}
+                      resizeMode="cover"
+                    />
+                  </View>
+                );
+              })()}
 
             <View style={styles.timelineContainer}>
               <Text style={styles.timelineTitle}>Seguimiento</Text>

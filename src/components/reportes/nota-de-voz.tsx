@@ -18,7 +18,7 @@ import { solicitarPermiso } from "../../utils/permisos";
 interface Props {
   audioUri: string | null;
   directorioBorrador: string;
-  onCambiar: (uri: string | null) => void;
+  onCambiar: (uri: string | null) => void | Promise<void>;
 }
 
 function formatoTiempo(ms: number): string {
@@ -46,14 +46,20 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
     solicitarPermiso(
       async () => {
         const r = await requestRecordingPermissionsAsync();
-        return { granted: r.granted, canAskAgain: r.canAskAgain, status: r.status };
+        return {
+          granted: r.granted,
+          canAskAgain: r.canAskAgain,
+          status: r.status,
+        };
       },
       {
         tituloDenegado: "Necesitamos el micrófono",
-        mensajeDenegado: "Sin micrófono no podés grabar la nota de voz. ¿Intentamos de nuevo?",
+        mensajeDenegado:
+          "Sin micrófono no podés grabar la nota de voz. ¿Intentamos de nuevo?",
         tituloBloqueado: "Micrófono bloqueado",
-        mensajeBloqueado: "Bloqueaste el micrófono desde el sistema. Abrí Ajustes y activalo.",
-      }
+        mensajeBloqueado:
+          "Bloqueaste el micrófono desde el sistema. Abrí Ajustes y activalo.",
+      },
     );
 
   const empezar = async () => {
@@ -61,7 +67,10 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
     if (!ok) return;
     try {
       setProcesando(true);
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch {
@@ -75,15 +84,21 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
     try {
       setProcesando(true);
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
       const tmp = recorder.uri;
       if (tmp) {
-        if (audioUri) eliminarArchivo(audioUri);
         const persistente = await guardarAudio(tmp, directorioBorrador);
-        onCambiar(persistente);
+        await onCambiar(persistente);
+        if (audioUri) eliminarArchivo(audioUri);
       }
     } catch {
-      Alert.alert("No se pudo guardar", "La nota no se pudo copiar al almacenamiento local.");
+      Alert.alert(
+        "No se pudo guardar",
+        "La nota no se pudo copiar al almacenamiento local.",
+      );
     } finally {
       setProcesando(false);
     }
@@ -91,7 +106,10 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
 
   const alternarReproduccion = async () => {
     try {
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
       if (playStatus.playing) player.pause();
       else player.play();
     } catch {
@@ -99,14 +117,14 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
     }
   };
 
-  const eliminar = () => {
-    if (audioUri) eliminarArchivo(audioUri);
+  const eliminar = async () => {
     try {
+      await onCambiar(null);
       player.pause();
+      if (audioUri) eliminarArchivo(audioUri);
     } catch {
-      // Mejor esfuerzo.
+      Alert.alert("No se pudo eliminar", "La nota se conserva. Reintentá.");
     }
-    onCambiar(null);
   };
 
   const grabando = recState.isRecording;
@@ -118,7 +136,8 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
         <Pressable
           style={[styles.boton, { backgroundColor: colors.primary }]}
           onPress={() => void empezar()}
-          disabled={procesando}>
+          disabled={procesando}
+        >
           <Text style={styles.botonTxt}>Grabar nota</Text>
         </Pressable>
       )}
@@ -128,8 +147,13 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
             ● {formatoTiempo(recState.durationMillis)}
           </ThemedText>
           <Pressable
-            style={[styles.boton, styles.botonStop, { backgroundColor: colors.error }]}
-            onPress={() => void parar()}>
+            style={[
+              styles.boton,
+              styles.botonStop,
+              { backgroundColor: colors.error },
+            ]}
+            onPress={() => void parar()}
+          >
             <Text style={styles.botonTxt}>Parar</Text>
           </Pressable>
         </View>
@@ -137,8 +161,13 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
       {audioUri && !grabando && (
         <View style={styles.fila}>
           <Pressable
-            style={[styles.boton, styles.botonSec, { borderColor: colors.primary }]}
-            onPress={() => void alternarReproduccion()}>
+            style={[
+              styles.boton,
+              styles.botonSec,
+              { borderColor: colors.primary },
+            ]}
+            onPress={() => void alternarReproduccion()}
+          >
             <ThemedText style={styles.botonSecTxt} themeColor="primary">
               {playStatus.playing ? "Pausar" : "Escuchar"}
             </ThemedText>
@@ -147,7 +176,7 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
             {formatoTiempo(playStatus.currentTime * 1000)} /{" "}
             {formatoTiempo(playStatus.duration * 1000)}
           </ThemedText>
-          <Pressable onPress={eliminar}>
+          <Pressable onPress={() => void eliminar()}>
             <ThemedText themeColor="error" style={styles.eliminar}>
               Eliminar
             </ThemedText>

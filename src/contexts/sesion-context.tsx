@@ -19,7 +19,16 @@ import {
   guardarPreferenciaBiometria,
   obtenerPreferenciaBiometria,
 } from "@/servicios/preferencias";
-import { borrarToken, guardarToken, obtenerToken } from "@/servicios/sesion";
+import {
+  borrarToken,
+  guardarToken,
+  obtenerToken,
+  guardarUsuarioSesion,
+} from "@/servicios/sesion";
+import {
+  cargarSesionGuardada,
+  type SesionRestaurada,
+} from "@/servicios/restauracion-sesion";
 import { Usuario } from "@/tipos";
 import { esError } from "@/tipos/api";
 import {
@@ -32,11 +41,7 @@ import {
 } from "react";
 
 export type FaseSesion =
-  | "cargando"
-  | "anonimo"
-  | "bloqueado"
-  | "sin_conexion"
-  | "autenticado";
+  "cargando" | "anonimo" | "bloqueado" | "sin_conexion" | "autenticado";
 
 type ResultadoAcceso = { ok: boolean; mensaje?: string };
 
@@ -46,6 +51,8 @@ interface SesionContextType {
   fase: FaseSesion;
   errorSesion: string | null;
   biometriaActiva: boolean;
+  modoOffline: boolean;
+  verificarConexion: () => Promise<boolean>;
   login: (datos: CredencialesLogin) => Promise<ResultadoAcceso>;
   registrar: (datos: DatosRegistro) => Promise<ResultadoAcceso>;
   logout: () => Promise<void>;
@@ -58,112 +65,44 @@ interface SesionContextType {
 
 const SesionContext = createContext<SesionContextType | undefined>(undefined);
 
-interface SesionRestaurada {
-  usuario: Usuario | null;
-  fase: FaseSesion;
-  error: string | null;
-  biometriaActiva: boolean;
-}
-
-async function cargarSesionGuardada(): Promise<SesionRestaurada> {
-  const sinUsuario = { usuario: null, error: null, biometriaActiva: false };
-  try {
-    const token = await obtenerToken();
-    if (!token) return { ...sinUsuario, fase: "anonimo" };
-
-    const respuesta = await validarToken(token);
-    if (esError(respuesta)) {
-      if (respuesta.error.codigo === "NO_AUTENTICADO") {
-        await borrarToken();
-        return { ...sinUsuario, fase: "anonimo" };
-      }
-      // Conservar el token ante fallos de red o del servidor.
-      return {
-        ...sinUsuario,
-        fase: "sin_conexion",
-        error: respuesta.error.mensaje,
-      };
-    }
-
-    const biometriaActiva = await obtenerPreferenciaBiometria(
-      respuesta.datos.id,
-    );
-    return {
-      usuario: respuesta.datos,
-      fase: biometriaActiva ? "bloqueado" : "autenticado",
-      error: null,
-      biometriaActiva,
-    };
-  } catch {
-    return {
-      ...sinUsuario,
-      fase: "sin_conexion",
-      error: "No pudimos recuperar la sesión. Probá nuevamente.",
-    };
-  }
-}
-
 export function SesionProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [fase, setFase] = useState<FaseSesion>("cargando");
   const [errorSesion, setErrorSesion] = useState<string | null>(null);
   const [biometriaActiva, setBiometriaActiva] = useState(false);
+  const [modoOffline, setModoOffline] = useState(false);
 
   const aplicarRestauracion = useCallback((sesion: SesionRestaurada) => {
     setUsuario(sesion.usuario);
     setFase(sesion.fase);
     setErrorSesion(sesion.error);
     setBiometriaActiva(sesion.biometriaActiva);
+    setModoOffline(sesion.modoOffline);
   }, []);
 
   const reintentarRestauracion = async () => {
     setFase("cargando");
-    setErrorSesion(null);
-    try {
-      const token = await obtenerToken();
-      if (!token) {
+    aplicarRestauracion(await cargarSesionGuardada());
+  };
+
+  const verificarConexion = useCallback(async () => {
+    const token = await obtenerToken();
+    if (!token) return false;
+    const respuesta = await validarToken(token);
+    if ((await obtenerToken()) !== token) return false;
+    if (esError(respuesta)) {
+      if (respuesta.error.codigo === "NO_AUTENTICADO") {
+        await borrarToken();
         setUsuario(null);
         setFase("anonimo");
-        return;
-      }
-
-      const respuesta = await validarToken(token);
-      if (esError(respuesta)) {
-        if (respuesta.error.codigo === "NO_AUTENTICADO") {
-          await borrarToken();
-          setUsuario(null);
-          setBiometriaActiva(false);
-          setFase("anonimo");
-          return;
-        }
-        // No destruir un token válido por caída de wifi, 500 o timeout.
-        setUsuario(null);
-        setErrorSesion(respuesta.error.mensaje);
-        setFase("sin_conexion");
-        return;
-      }
-
-      const perfil = respuesta.datos;
-      setUsuario(perfil);
-      let preferencia = false;
-
-      try {
-        preferencia = await obtenerPreferenciaBiometria(perfil.id);
-      } catch (error) {
-        console.error(
-          "[SQLITE] Error al recuperar preferencia biométrica:",
-          error,
-        );
-      }
-
-      setBiometriaActiva(preferencia);
-      setFase(preferencia ? "bloqueado" : "autenticado");
-    } catch {
-      setUsuario(null);
-      setErrorSesion("No pudimos recuperar la sesión. Probá nuevamente.");
-      setFase("sin_conexion");
+      } else setModoOffline(true);
+      return false;
     }
-  };
+    await guardarUsuarioSesion(respuesta.datos, token);
+    setUsuario(respuesta.datos);
+    setModoOffline(false);
+    return true;
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -180,6 +119,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   ): Promise<ResultadoAcceso> {
     try {
       await guardarToken(sesion.token);
+      await guardarUsuarioSesion(sesion.usuario, sesion.token);
     } catch (error) {
       console.error("[SESION] Error al guardar el token:", error);
 
@@ -206,6 +146,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
       );
     }
 
+    setModoOffline(false);
     setUsuario(sesion.usuario);
     setBiometriaActiva(preferenciaBiometria);
     setErrorSesion(null);
@@ -248,6 +189,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
   async function cambiarAvisos(habilitada: boolean) {
     const actualizado = await guardarAvisos(habilitada);
+    await guardarUsuarioSesion(actualizado);
     setUsuario(actualizado);
   }
 
@@ -300,6 +242,8 @@ export function SesionProvider({ children }: { children: ReactNode }) {
         fase,
         errorSesion,
         biometriaActiva,
+        modoOffline,
+        verificarConexion,
         login,
         registrar,
         logout,
