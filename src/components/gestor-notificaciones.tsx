@@ -4,10 +4,19 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 
 import { useSesion } from "@/contexts/sesion-context";
-import { admitePush, registrarNotificaciones } from "@/servicios/notificaciones";
+import { admitePush, registrarNotificaciones, reintentarBajasNotificaciones } from "@/servicios/notificaciones";
 
 export function GestorNotificaciones() {
   const { fase, usuario } = useSesion();
+
+  useEffect(() => {
+    const reintentar = () => void reintentarBajasNotificaciones().catch(() => undefined);
+    reintentar();
+    const suscripcion = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") reintentar();
+    });
+    return () => suscripcion.remove();
+  }, []);
 
   useEffect(() => {
     if (fase !== "autenticado" || !usuario || !admitePush()) return;
