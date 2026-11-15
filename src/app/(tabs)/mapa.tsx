@@ -1,6 +1,6 @@
 import { useTheme } from "@/hooks/use-theme";
 import type { ThemeColors } from "@/constants/theme";
-// 🔴 TODO: Codigo repetido con src/componentes/SeguimientoVecino.tsx (tarjetas y qr), refactorizar a un componente comun.
+import { DetalleReporteModal } from "@/components/reportes/detalle-reporte-modal";
 
 import * as Location from "expo-location";
 import { FiltrosMapa } from "@/components/reportes/filtros-mapa";
@@ -12,11 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import React, { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -28,7 +24,6 @@ import MapView, {
   PROVIDER_GOOGLE,
   type Region,
 } from "react-native-maps";
-import QRCode from "react-native-qrcode-svg";
 
 import {
   adherirseAReporte,
@@ -297,9 +292,6 @@ const TarjetaReporte = ({
   const [adherido, setAdherido] = useState(false);
 
   const reporteActual = detalleReporte ?? reporte;
-  const fotosValidas = (reporteActual.fotos ?? []).filter((foto) =>
-    Boolean(foto?.url?.trim()),
-  );
   const estado = estadoConfig[reporteActual.estado];
   const puedeAdherirse =
     !!usuario &&
@@ -434,212 +426,59 @@ const TarjetaReporte = ({
         <Text style={styles.primaryButtonText}>Ver detalle y QR</Text>
       </TouchableOpacity>
 
-      <Modal
+      <DetalleReporteModal
         visible={detalleVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={cerrarDetalle}
+        reporte={reporteActual}
+        tipo={tipo}
+        historialReporte={historialReporte}
+        cargandoDetalle={cargandoDetalle}
+        qrValue={reporteActual.id}
+        onCerrar={cerrarDetalle}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.modalContent}
-            >
-              <Text style={styles.modalTitle}>{reporteActual.codigo}</Text>
+        {usuario &&
+        usuario.id !== reporteActual.autorId &&
+        adherido ? (
+          <Text style={styles.estadoAdhesionText}>
+            Ya estás adherido a este reporte.
+          </Text>
+        ) : null}
 
-              {cargandoDetalle ? (
-                <View style={styles.loadingDetalle}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.loadingText}>Cargando detalle…</Text>
-                </View>
-              ) : (
-                <>
-                  <View style={styles.heroRow}>
-                    <View style={styles.heroInfo}>
-                      <Text style={styles.heroTipo}>
-                        {tipo?.nombre ?? "Reporte"}
-                      </Text>
-                      <Text style={styles.heroMeta}>
-                        {formatFecha(reporteActual.creadoEn)}
-                      </Text>
-                    </View>
+        {usuario &&
+        usuario.id !== reporteActual.autorId &&
+        !adherido ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={async () => {
+              await vibracionSuave();
+              await manejarAdhesion();
+            }}
+            style={[
+              styles.adherirButton,
+              !puedeAdherirse && styles.adherirButtonDisabled,
+            ]}
+            disabled={!puedeAdherirse}
+          >
+            <Text style={styles.adherirButtonText}>
+              {cargandoAdhesion
+                ? "Adhiriendo..."
+                : "Adherirme a este reporte"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
-                    <View
-                      style={[
-                        styles.badge,
-                        {
-                          backgroundColor: estado.backgroundColor,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.badgeText, { color: estado.color }]}>
-                        {estado.label}
-                      </Text>
-                    </View>
-                  </View>
+        {!usuario ? (
+          <Text style={styles.emptyText}>
+            Iniciá sesión para adherirte a este reporte.
+          </Text>
+        ) : null}
 
-                  <Text style={styles.sectionLabel}>Reporte</Text>
-                  <Text style={styles.descriptionText}>
-                    {reporteActual.descripcion || "Sin descripción adicional."}
-                  </Text>
+        {usuario && usuario.id === reporteActual.autorId ? (
+          <Text style={styles.emptyText}>
+            Este reporte es tuyo, así que no podés adherirte.
+          </Text>
+        ) : null}
 
-                  <View style={styles.detailsGrid}>
-                    <View style={styles.detailBox}>
-                      <Text style={styles.detailLabel}>Dirección</Text>
-                      <Text style={styles.detailValue}>
-                        {reporteActual.direccion}
-                      </Text>
-                    </View>
-                    <View style={styles.detailBox}>
-                      <Text style={styles.detailLabel}>Adhesiones</Text>
-                      <Text style={styles.detailValue}>
-                        {reporteActual.adhesiones}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.qrContainer}>
-                    <QRCode
-                      value={reporteActual.id}
-                      size={180}
-                      backgroundColor="white"
-                      color="#111827"
-                    />
-                  </View>
-
-                  <Text style={styles.helperText}>
-                    Muestre este código en ventanilla para consultar su trámite.
-                  </Text>
-
-                  <Text style={styles.sectionLabel}>Fotos</Text>
-                  {fotosValidas.length > 0 ? (
-                    <View style={styles.fotosGrid}>
-                      {fotosValidas.map((foto) => (
-                        <View key={foto.id} style={styles.fotoFrame}>
-                          <Image
-                            source={{ uri: foto.url }}
-                            style={styles.foto}
-                            resizeMode="cover"
-                            accessibilityIgnoresInvertColors
-                          />
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={styles.emptyText}>
-                      Este reporte no tiene fotos.
-                    </Text>
-                  )}
-
-                  {usuario &&
-                  usuario.id !== reporteActual.autorId &&
-                  adherido ? (
-                    <Text style={styles.estadoAdhesionText}>
-                      Ya estás adherido a este reporte.
-                    </Text>
-                  ) : null}
-
-                  {usuario &&
-                  usuario.id !== reporteActual.autorId &&
-                  !adherido ? (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={async () => {
-                        await vibracionSuave();
-                        await manejarAdhesion();
-                      }}
-                      style={[
-                        styles.adherirButton,
-                        !puedeAdherirse && styles.adherirButtonDisabled,
-                      ]}
-                      disabled={!puedeAdherirse}
-                    >
-                      <Text style={styles.adherirButtonText}>
-                        {cargandoAdhesion
-                          ? "Adhiriendo..."
-                          : "Adherirme a este reporte"}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {!usuario ? (
-                    <Text style={styles.emptyText}>
-                      Iniciá sesión para adherirte a este reporte.
-                    </Text>
-                  ) : null}
-
-                  {usuario && usuario.id === reporteActual.autorId ? (
-                    <Text style={styles.emptyText}>
-                      Este reporte es tuyo, así que no podés adherirte.
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.timelineContainer}>
-                    <Text style={styles.timelineTitle}>Seguimiento</Text>
-
-                    {(historialReporte.length > 0 ? historialReporte : []).map(
-                      (cambio, index, items) => (
-                        <React.Fragment key={cambio.id}>
-                          <View style={styles.timelineRow}>
-                            <View
-                              style={[
-                                styles.timelineDot,
-                                cambio.estado === reporteActual.estado &&
-                                  styles.timelineDotActive,
-                              ]}
-                            />
-                            <View style={styles.timelineTextWrap}>
-                              <Text style={styles.timelineText}>
-                                {estadoConfig[cambio.estado]?.label ??
-                                  cambio.estado}
-                              </Text>
-                              {cambio.comentario ? (
-                                <Text style={styles.timelineComment}>
-                                  {cambio.comentario}
-                                </Text>
-                              ) : null}
-                            </View>
-                          </View>
-
-                          {index < items.length - 1 ? (
-                            <View style={styles.timelineLine} />
-                          ) : null}
-                        </React.Fragment>
-                      ),
-                    )}
-
-                    {historialReporte.length === 0 && reporteActual && (
-                      <View style={styles.timelineRow}>
-                        <View
-                          style={[styles.timelineDot, styles.timelineDotActive]}
-                        />
-                        <View style={styles.timelineTextWrap}>
-                          <Text style={styles.timelineText}>
-                            {estadoConfig[reporteActual.estado]?.label ??
-                              reporteActual.estado}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={async () => {
-                      await vibracionSuave();
-                      cerrarDetalle();
-                    }}
-                    style={styles.closeButton}
-                  >
-                    <Text style={styles.closeButtonText}>Cerrar</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      </DetalleReporteModal>
     </View>
   );
 };
@@ -671,11 +510,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
-  },
-  loadingText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "600",
   },
   errorOverlay: {
     position: "absolute",
@@ -774,124 +608,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    maxHeight: "90%",
-    width: "100%",
-  },
-  modalContent: {
-    paddingBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 18,
-  },
-  loadingDetalle: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-    gap: 8,
-  },
-  heroRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 18,
-    gap: 12,
-  },
-  heroInfo: {
-    flex: 1,
-  },
-  heroTipo: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  heroMeta: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 8,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 18,
-  },
-  detailsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 18,
-  },
-  detailBox: {
-    flex: 1,
-    backgroundColor: colors.backgroundElement,
-    borderRadius: 12,
-    padding: 12,
-  },
-  detailLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  detailValue: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: "600",
-  },
-  qrContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  helperText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  fotosGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 16,
-    columnGap: 8,
-    rowGap: 8,
-  },
-  fotoFrame: {
-    width: "32%",
-    aspectRatio: 1,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: colors.backgroundSelected,
-  },
-  foto: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 10,
-    backgroundColor: colors.backgroundSelected,
-  },
   adherirButton: {
     backgroundColor: "#16A34A",
     borderRadius: 12,
@@ -922,64 +638,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     textAlign: "center",
-  },
-  timelineContainer: {
-    width: "100%",
-    paddingHorizontal: 8,
-    marginBottom: 20,
-  },
-  timelineTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 12,
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    marginTop: 6,
-  },
-  timelineDotActive: {
-    backgroundColor: colors.primaryBackground,
-  },
-  timelineTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  timelineText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  timelineComment: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  timelineLine: {
-    width: 2,
-    height: 16,
-    backgroundColor: colors.border,
-    marginLeft: 4,
-    marginVertical: 4,
-  },
-  closeButton: {
-    width: "100%",
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  closeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

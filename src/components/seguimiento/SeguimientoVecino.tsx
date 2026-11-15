@@ -1,3 +1,4 @@
+import { DetalleReporteModal } from "@/components/reportes/detalle-reporte-modal";
 import { useTheme } from "@/hooks/use-theme";
 import type { ThemeColors } from "@/constants/theme";
 import React, {
@@ -11,7 +12,6 @@ import {
   Alert,
   FlatList,
   Image,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,7 +38,6 @@ import {
 import { tiposGuardados } from "@/servicios/offline/catalogo";
 import { TextoCorregido } from "@/components/texto-corregido";
 import { router, useFocusEffect } from "expo-router";
-import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
 
@@ -107,7 +106,6 @@ export default function SeguimientoVecino(): React.ReactElement {
   const enviosLocales = usuarioId ? leerEstadoLocal(usuarioId).envios : [];
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [filtroActivo, setFiltroActivo] = useState<FiltroVecino>("todos");
-  const [alturaAyuda, setAlturaAyuda] = useState(48);
   const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
     [],
   );
@@ -404,130 +402,15 @@ export default function SeguimientoVecino(): React.ReactElement {
         />
       )}
 
-      <Modal
-        visible={reporteSeleccionado !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setReporteSeleccionado(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <TextoCorregido style={styles.modalTitle}>
-              {reporteSeleccionado?.codigo}
-            </TextoCorregido>
-
-            <View style={styles.qrContainer}>
-              {reporteSeleccionado && (
-                <QRCode
-                  value={reporteSeleccionado.codigo}
-                  size={160}
-                  backgroundColor="white"
-                  color="#111827"
-                />
-              )}
-            </View>
-
-            <Text
-              style={[styles.helperText, { minHeight: alturaAyuda }]}
-              onTextLayout={(evento) => {
-                const alturaNecesaria = Math.ceil(
-                  evento.nativeEvent.lines.length * 22 + 4,
-                );
-
-                if (alturaNecesaria > alturaAyuda) {
-                  setAlturaAyuda(alturaNecesaria);
-                }
-              }}
-            >
-              Muestre este código en ventanilla para consultar su trámite.
-            </Text>
-
-            {/* FOTO DE RESOLUCIÓN DEL OPERADOR */}
-            {reporteSeleccionado?.fotos &&
-              (() => {
-                const fotoArreglo = (reporteSeleccionado.fotos as any[]).find(
-                  (f) => f.momento === "arreglo",
-                );
-                if (!fotoArreglo) return null;
-
-                return (
-                  <View style={styles.fotoArregloContainer}>
-                    <Text style={styles.fotoArregloTitle}>
-                      Foto de la solución:
-                    </Text>
-                    <Image
-                      source={{ uri: fotoArreglo.url }}
-                      style={styles.fotoArregloImg}
-                      resizeMode="cover"
-                    />
-                  </View>
-                );
-              })()}
-
-            <View style={styles.timelineContainer}>
-              <Text style={styles.timelineTitle}>Seguimiento</Text>
-
-              {(historialReporte.length > 0 ? historialReporte : []).map(
-                (cambio, index, items) => (
-                  <React.Fragment key={cambio.id}>
-                    <View style={styles.timelineRow}>
-                      <View
-                        style={[
-                          styles.timelineDot,
-                          cambio.estado === reporteSeleccionado?.estado &&
-                            styles.timelineDotActive,
-                        ]}
-                      />
-                      <View style={styles.timelineTextWrap}>
-                        <TextoCorregido style={styles.timelineText}>
-                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
-                        </TextoCorregido>
-
-                        {cambio.comentario ? (
-                          <Text style={styles.timelineComment}>
-                            {cambio.comentario}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-
-                    {index < items.length - 1 ? (
-                      <View style={styles.timelineLine} />
-                    ) : null}
-                  </React.Fragment>
-                ),
-              )}
-
-              {historialReporte.length === 0 && reporteSeleccionado && (
-                <View style={styles.timelineRow}>
-                  <View
-                    style={[styles.timelineDot, styles.timelineDotActive]}
-                  />
-                  <View style={styles.timelineTextWrap}>
-                    <TextoCorregido style={styles.timelineText}>
-                      {estadoConfig[reporteSeleccionado.estado]?.label ??
-                        reporteSeleccionado.estado}
-                    </TextoCorregido>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={async () => {
-                await vibracionSuave();
-                setReporteSeleccionado(null);
-              }}
-              style={styles.closeButton}
-            >
-              <TextoCorregido style={styles.closeButtonText}>
-                Cerrar
-              </TextoCorregido>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {reporteSeleccionado && (
+        <DetalleReporteModal
+          visible
+          reporte={reporteSeleccionado}
+          tipo={getTipoReporte(reporteSeleccionado.tipoId)}
+          historialReporte={historialReporte}
+          onCerrar={() => setReporteSeleccionado(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -704,114 +587,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexShrink: 1,
     paddingHorizontal: 5,
     includeFontPadding: true,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 14,
-  },
-  qrContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 10,
-  },
-  helperText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  fotoArregloContainer: {
-    width: "100%",
-    marginBottom: 14,
-  },
-  fotoArregloTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 6,
-  },
-  fotoArregloImg: {
-    width: "100%",
-    height: 140,
-    borderRadius: 10,
-  },
-  timelineContainer: {
-    width: "100%",
-    paddingHorizontal: 8,
-    marginBottom: 16,
-  },
-  timelineTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 10,
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    marginTop: 6,
-  },
-  timelineDotActive: {
-    backgroundColor: colors.primaryBackground,
-  },
-  timelineTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  timelineText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  timelineComment: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  timelineLine: {
-    width: 2,
-    height: 14,
-    backgroundColor: colors.border,
-    marginLeft: 4,
-    marginVertical: 4,
-  },
-  closeButton: {
-    width: "100%",
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  closeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-    paddingHorizontal: 4,
   },
 });
