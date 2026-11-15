@@ -1,8 +1,18 @@
-import React, { useEffect, useState } from "react";
+import { DetalleReporteModal } from "@/components/reportes/detalle-reporte-modal";
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
-  Modal,
+  Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,12 +25,30 @@ import {
 } from "../../servicios/reportes";
 import type { CambioDeEstado, Reporte, TipoDeReporte } from "../../tipos";
 
+import { useSesion } from "@/contexts/sesion-context";
+import {
+  colaReportes,
+  leerEstadoLocal,
+  misReportesLocales,
+} from "@/servicios/offline/reportes-locales";
+import {
+  revisionLocal,
+  suscribirDatosLocales,
+} from "@/servicios/offline/persistencia";
+import { tiposGuardados } from "@/servicios/offline/catalogo";
 import { TextoCorregido } from "@/components/texto-corregido";
-import { useFocusEffect } from "expo-router";
-import { useCallback } from "react";
-import QRCode from "react-native-qrcode-svg";
+import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { vibracionSuave } from "../../utils/haptica";
+
+type FiltroVecino =
+  | "todos"
+  | "pendientes"
+  | "recibido"
+  | "en_revision"
+  | "asignado"
+  | "resuelto"
+  | "rechazado";
 
 const estadoConfig: Record<
   Reporte["estado"],
@@ -41,6 +69,16 @@ const estadoConfig: Record<
   },
 };
 
+const filtroVecinoLabels: { value: FiltroVecino; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "pendientes", label: "Pendientes de envío" },
+  { value: "recibido", label: "Recibidos" },
+  { value: "en_revision", label: "En revisión" },
+  { value: "asignado", label: "Asignados" },
+  { value: "resuelto", label: "Resueltos" },
+  { value: "rechazado", label: "Rechazados" },
+];
+
 const formatFecha = (fechaIso: string): string => {
   const fecha = new Date(fechaIso);
 
@@ -52,11 +90,22 @@ const formatFecha = (fechaIso: string): string => {
 };
 
 export default function SeguimientoVecino(): React.ReactElement {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reporteSeleccionado, setReporteSeleccionado] =
     useState<Reporte | null>(null);
-  const [misReportes, setMisReportes] = useState<Reporte[]>([]);
+  const { usuario, modoOffline } = useSesion();
+  const usuarioId = usuario?.id;
+  const revision = useSyncExternalStore(
+    suscribirDatosLocales,
+    revisionLocal,
+    revisionLocal,
+  );
+  void revision;
+  const misReportes = usuarioId ? misReportesLocales(usuarioId) : [];
+  const enviosLocales = usuarioId ? leerEstadoLocal(usuarioId).envios : [];
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
-  const [alturaAyuda, setAlturaAyuda] = useState(48);
+  const [filtroActivo, setFiltroActivo] = useState<FiltroVecino>("todos");
   const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
     [],
   );
@@ -65,21 +114,21 @@ export default function SeguimientoVecino(): React.ReactElement {
 
   useFocusEffect(
     useCallback(() => {
+      if (!usuarioId) return;
       let activo = true;
 
       async function cargarDatos() {
         try {
-          setCargando(true);
+          setCargando(false);
+          setTipos(tiposGuardados());
           setError(null);
 
-          const [reportes, tiposDisponibles] = await Promise.all([
+          const [, tiposDisponibles] = await Promise.all([
             listarMisReportes(),
             listarTiposDeReporte(),
           ]);
 
           if (!activo) return;
-
-          setMisReportes(reportes);
 
           setTipos(tiposDisponibles);
         } catch {
@@ -98,20 +147,20 @@ export default function SeguimientoVecino(): React.ReactElement {
       return () => {
         activo = false;
       };
-    }, []),
+    }, [usuarioId, setError, setTipos, setCargando]),
   );
 
   useEffect(() => {
-    if (!reporteSeleccionado) {
-      setHistorialReporte([]);
-      return;
-    }
+    if (!reporteSeleccionado?.sincronizado) return;
+
+    let activo = true;
 
     const reporteActual = reporteSeleccionado;
 
     async function cargarHistorial() {
       try {
         const cambios = await obtenerCambiosDeReporte(reporteActual.id);
+        if (!activo) return;
         setHistorialReporte(
           [...cambios].sort(
             (a, b) =>
@@ -119,19 +168,37 @@ export default function SeguimientoVecino(): React.ReactElement {
           ),
         );
       } catch {
-        setHistorialReporte([]);
+        if (activo) setHistorialReporte([]);
       }
     }
 
     void cargarHistorial();
+    return () => {
+      activo = false;
+    };
   }, [reporteSeleccionado]);
 
   const getTipoReporte = (tipoId: string) =>
     tipos.find((tipo) => tipo.id === tipoId) ?? null;
 
+  // Filtrar reportes según la pestaña seleccionada
+  const reportesFiltrados = misReportes.filter((reporte) => {
+    if (filtroActivo === "todos") return true;
+    if (filtroActivo === "pendientes") return !reporte.sincronizado;
+    return reporte.sincronizado && reporte.estado === filtroActivo;
+  });
+
   const renderItem = ({ item }: { item: Reporte }) => {
     const tipo = getTipoReporte(item.tipoId);
     const estado = estadoConfig[item.estado];
+    const envio = enviosLocales.find((e) => e.id === item.id);
+    const etiqueta = item.sincronizado
+      ? estado.label
+      : envio?.estado === "enviando"
+        ? "Enviando"
+        : envio?.estado === "error" || envio?.estado === "sesion"
+          ? "Revisar envío"
+          : "Pendiente de envío";
 
     return (
       <View style={styles.card}>
@@ -144,7 +211,7 @@ export default function SeguimientoVecino(): React.ReactElement {
               textBreakStrategy="simple"
               android_hyphenationFrequency="none"
             >
-              {item.codigo}
+              {item.codigo || "Código disponible al confirmarse el envío"}
             </Text>
           </View>
 
@@ -157,7 +224,7 @@ export default function SeguimientoVecino(): React.ReactElement {
             ]}
           >
             <TextoCorregido style={[styles.badgeText, { color: estado.color }]}>
-              {estado.label}
+              {etiqueta}
             </TextoCorregido>
           </View>
         </View>
@@ -170,16 +237,84 @@ export default function SeguimientoVecino(): React.ReactElement {
           </TextoCorregido>
         </View>
 
+        {!item.sincronizado && (
+          <View style={{ gap: 8, marginBottom: 12 }}>
+            <Text>{item.direccion}</Text>
+            {item.fotos[0] && (
+              <Image
+                source={{ uri: item.fotos[0].url }}
+                style={{ width: "100%", height: 120, borderRadius: 8 }}
+              />
+            )}
+            <Text>
+              {envio?.error ??
+                "Guardado en este teléfono. Se enviará automáticamente al recuperar conexión mientras uses la app."}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           activeOpacity={0.85}
+          disabled={!item.sincronizado && envio?.estado === "enviando"}
           onPress={async () => {
+            if (!item.sincronizado && usuarioId) {
+              if (envio?.estado === "error") {
+                const corregir = (reemplazar = false) => {
+                  try {
+                    colaReportes.corregir(usuarioId, item.id, reemplazar);
+                    router.push("/reportar");
+                  } catch (e) {
+                    setError(
+                      e instanceof Error
+                        ? e.message
+                        : "No pudimos recuperar el reporte para corregirlo.",
+                    );
+                  }
+                };
+                const otro = leerEstadoLocal(usuarioId).borrador;
+                if (
+                  otro &&
+                  (otro.tipoId ||
+                    otro.descripcion ||
+                    otro.fotos.length ||
+                    otro.audioUrl ||
+                    otro.ubicacion)
+                ) {
+                  Alert.alert(
+                    "¿Reemplazar el borrador actual?",
+                    "Se descartará el borrador que estabas completando para corregir este reporte. Los demás envíos se conservan.",
+                    [
+                      { text: "Conservar", style: "cancel" },
+                      {
+                        text: "Reemplazar borrador",
+                        style: "destructive",
+                        onPress: () => corregir(true),
+                      },
+                    ],
+                  );
+                } else corregir();
+                return;
+              }
+              try {
+                colaReportes.reintentar(usuarioId, item.id);
+              } catch {
+                setError(
+                  "No pudimos guardar el reintento. Tus archivos se conservan.",
+                );
+              }
+              return;
+            }
             await vibracionSuave();
+            setHistorialReporte([]);
             setReporteSeleccionado(item);
           }}
           style={styles.primaryButton}
         >
           <TextoCorregido style={styles.primaryButtonText}>
-            Ver Seguimiento y QR
+            {item.sincronizado
+              ? "Ver Seguimiento y QR"
+              : envio?.estado === "error"
+                ? "Corregir reporte"
+                : "Reintentar envío"}
           </TextoCorregido>
         </TouchableOpacity>
       </View>
@@ -192,6 +327,49 @@ export default function SeguimientoVecino(): React.ReactElement {
         <Text style={styles.headerTitle}>Mis Reclamos</Text>
       </View>
 
+      {modoOffline && (
+        <Text style={{ padding: 12 }}>
+          Sin conexión. Mostramos los reclamos guardados en este teléfono.
+        </Text>
+      )}
+      {error && misReportes.length > 0 && (
+        <Text style={{ padding: 12 }}>
+          {error} Conservamos tus reportes locales.
+        </Text>
+      )}
+      {/* FILTROS HORIZONTALES PARA EL VECINO */}
+      <View style={styles.filtrosContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtroScrollContent}
+        >
+          {filtroVecinoLabels.map((filtro) => {
+            const activo = filtroActivo === filtro.value;
+            return (
+              <TouchableOpacity
+                key={filtro.value}
+                onPress={() => setFiltroActivo(filtro.value)}
+                activeOpacity={0.85}
+                style={[
+                  styles.filtroButton,
+                  activo && styles.filtroButtonActivo,
+                ]}
+              >
+                <TextoCorregido
+                  style={[
+                    styles.filtroTexto,
+                    activo && styles.filtroTextoActivo,
+                  ]}
+                >
+                  {filtro.label}
+                </TextoCorregido>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {cargando ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="small" color="#1F6FEB" />
@@ -200,16 +378,23 @@ export default function SeguimientoVecino(): React.ReactElement {
             Cargando tus reclamos
           </TextoCorregido>
         </View>
-      ) : error ? (
+      ) : error && misReportes.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
             No pudimos cargar tu seguimiento
           </Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
+      ) : reportesFiltrados.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No hay reclamos en este estado</Text>
+          <Text style={styles.emptyText}>
+            Probá cambiando de filtro o creando un nuevo reporte.
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={misReportes}
+          data={reportesFiltrados}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -217,129 +402,63 @@ export default function SeguimientoVecino(): React.ReactElement {
         />
       )}
 
-      <Modal
-        visible={reporteSeleccionado !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setReporteSeleccionado(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <TextoCorregido style={styles.modalTitle}>
-              {reporteSeleccionado?.codigo}
-            </TextoCorregido>
-
-            <View style={styles.qrContainer}>
-              {reporteSeleccionado && (
-                <QRCode
-                  value={reporteSeleccionado.codigo}
-                  size={200}
-                  backgroundColor="white"
-                  color="#111827"
-                />
-              )}
-            </View>
-
-            <Text
-              style={[styles.helperText, { minHeight: alturaAyuda }]}
-              onTextLayout={(evento) => {
-                const alturaNecesaria = Math.ceil(
-                  evento.nativeEvent.lines.length * 22 + 4,
-                );
-
-                if (alturaNecesaria > alturaAyuda) {
-                  setAlturaAyuda(alturaNecesaria);
-                }
-              }}
-            >
-              Muestre este código en ventanilla para consultar su trámite.
-            </Text>
-
-            <View style={styles.timelineContainer}>
-              <Text style={styles.timelineTitle}>Seguimiento</Text>
-
-              {(historialReporte.length > 0 ? historialReporte : []).map(
-                (cambio, index, items) => (
-                  <React.Fragment key={cambio.id}>
-                    <View style={styles.timelineRow}>
-                      <View
-                        style={[
-                          styles.timelineDot,
-                          cambio.estado === reporteSeleccionado?.estado &&
-                            styles.timelineDotActive,
-                        ]}
-                      />
-                      <View style={styles.timelineTextWrap}>
-                        <TextoCorregido style={styles.timelineText}>
-                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
-                        </TextoCorregido>
-
-                        {cambio.comentario ? (
-                          <Text style={styles.timelineComment}>
-                            {cambio.comentario}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-
-                    {index < items.length - 1 ? (
-                      <View style={styles.timelineLine} />
-                    ) : null}
-                  </React.Fragment>
-                ),
-              )}
-
-              {historialReporte.length === 0 && reporteSeleccionado && (
-                <View style={styles.timelineRow}>
-                  <View
-                    style={[styles.timelineDot, styles.timelineDotActive]}
-                  />
-                  <View style={styles.timelineTextWrap}>
-                    <TextoCorregido style={styles.timelineText}>
-                      {estadoConfig[reporteSeleccionado.estado]?.label ??
-                        reporteSeleccionado.estado}
-                    </TextoCorregido>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={async () => {
-                await vibracionSuave();
-                setReporteSeleccionado(null);
-              }}
-              style={styles.closeButton}
-            >
-              <TextoCorregido style={styles.closeButtonText}>
-                Cerrar
-              </TextoCorregido>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {reporteSeleccionado && (
+        <DetalleReporteModal
+          visible
+          reporte={reporteSeleccionado}
+          tipo={getTipoReporte(reporteSeleccionado.tipoId)}
+          historialReporte={historialReporte}
+          onCerrar={() => setReporteSeleccionado(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: colors.background,
   },
   header: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     paddingRight: 4,
+  },
+  filtrosContainer: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 8,
+  },
+  filtroScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filtroButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.backgroundElement,
+  },
+  filtroTexto: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  filtroButtonActivo: {
+    backgroundColor: colors.primaryBackground,
+  },
+  filtroTextoActivo: {
+    color: "#FFFFFF",
   },
   listContent: {
     paddingHorizontal: 16,
@@ -355,7 +474,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    color: "#374151",
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -369,15 +488,15 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   emptyText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: colors.textSecondary,
     textAlign: "center",
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     shadowColor: "#000000",
@@ -400,14 +519,14 @@ const styles = StyleSheet.create({
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     flexShrink: 1,
     paddingRight: 4,
     includeFontPadding: true,
   },
   codigoTexto: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "600",
     marginTop: 3,
   },
@@ -438,21 +557,21 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
+    color: colors.textSecondary,
     flexShrink: 1,
     paddingRight: 4,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#111827",
+    color: colors.text,
     textAlign: "right",
     flexShrink: 0,
     paddingHorizontal: 4,
     includeFontPadding: true,
   },
   primaryButton: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -468,99 +587,5 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     paddingHorizontal: 5,
     includeFontPadding: true,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 18,
-  },
-  qrContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 14,
-  },
-  helperText: {
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  timelineContainer: {
-    width: "100%",
-    paddingHorizontal: 8,
-    marginBottom: 20,
-  },
-  timelineTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "#D1D5DB",
-    marginTop: 6,
-  },
-  timelineDotActive: {
-    backgroundColor: "#1F6FEB",
-  },
-  timelineTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  timelineText: {
-    fontSize: 14,
-    color: "#374151",
-    fontWeight: "600",
-  },
-  timelineComment: {
-    fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 18,
-  },
-  timelineLine: {
-    width: 2,
-    height: 16,
-    backgroundColor: "#D1D5DB",
-    marginLeft: 4,
-    marginVertical: 4,
-  },
-  closeButton: {
-    width: "100%",
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  closeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-    paddingHorizontal: 4,
   },
 });

@@ -1,16 +1,21 @@
-import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity
+} from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { FormularioAcceso } from "@/components/formulario-acceso";
 import { Spacing } from "@/constants/theme";
 import { useSesion } from "@/contexts/sesion-context";
 import { useTheme } from "@/hooks/use-theme";
 import { router } from "expo-router";
-import { useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useRef, useState } from "react";
 
 export default function LoginScreen() {
   const colors = useTheme();
+  const passwordRef = useRef<TextInput>(null);
   const { login } = useSesion();
 
   const [email, setEmail] = useState("");
@@ -28,7 +33,8 @@ export default function LoginScreen() {
     setEnviando(true);
     try {
       const resultado = await login({ email: email.trim(), password });
-      if (!resultado.ok) setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
+      if (!resultado.ok)
+        setError(resultado.mensaje ?? "No se pudo iniciar sesión.");
     } catch {
       setError("Ocurrió un error inesperado.");
     } finally {
@@ -37,78 +43,97 @@ export default function LoginScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title" style={styles.title}>
-          Reporte Ciudadano
+    <FormularioAcceso>
+      <Image
+        source={require("../../assets/images/splash-icon.png")}
+        style={styles.logo}
+        resizeMode="contain"
+        accessibilityLabel="Reporte Ciudadano"
+      />
+
+      <ThemedText style={styles.subtitle}>
+        Iniciá sesión para continuar
+      </ThemedText>
+
+      <TextInput
+        style={[
+          styles.input,
+          { borderColor: colors.backgroundSelected, color: colors.text },
+        ]}
+        accessibilityLabel="Email"
+        autoComplete="email"
+        autoCorrect={false}
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        placeholder="Email"
+        placeholderTextColor={colors.textSecondary}
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+
+      <TextInput
+        style={[
+          styles.input,
+          { borderColor: colors.backgroundSelected, color: colors.text },
+        ]}
+        ref={passwordRef}
+        accessibilityLabel="Contraseña"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="current-password"
+        returnKeyType="go"
+        onSubmitEditing={() => void handleLogin()}
+        placeholder="Contraseña"
+        placeholderTextColor={colors.textSecondary}
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+
+      {error && <ThemedText accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.error, { color: colors.error }]}>{error}</ThemedText>}
+
+      <TouchableOpacity
+        style={[styles.boton, { backgroundColor: colors.text }]}
+        onPress={handleLogin}
+        disabled={enviando} accessibilityRole="button"
+        accessibilityState={{ disabled: enviando, busy: enviando }}
+      >
+        <ThemedText style={{ color: colors.background }}>
+          {enviando ? "Ingresando..." : "Ingresar"}
         </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Iniciá sesión para continuar
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.enlace} accessibilityRole="link" onPress={() => router.push("/registro")}>
+        <ThemedText style={styles.link}>
+          ¿No tenés cuenta? Registrate
         </ThemedText>
-
-        <TextInput
-          style={[
-            styles.input,
-            { borderColor: colors.backgroundSelected, color: colors.text },
-          ]}
-          placeholder="Email"
-          placeholderTextColor={colors.textSecondary}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-
-        <TextInput
-          style={[
-            styles.input,
-            { borderColor: colors.backgroundSelected, color: colors.text },
-          ]}
-          placeholder="Contraseña"
-          placeholderTextColor={colors.textSecondary}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
-        {error && <ThemedText style={styles.error}>{error}</ThemedText>}
-
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: colors.text }]}
-          onPress={handleLogin}
-          disabled={enviando}
-        >
-          <ThemedText style={{ color: colors.background }}>
-            {enviando ? "Ingresando..." : "Ingresar"}
-          </ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push("/registro")}>
-          <ThemedText style={styles.link}>
-            ¿No tenés cuenta? Registrate
-          </ThemedText>
-        </TouchableOpacity>
-      </SafeAreaView>
-    </ThemedView>
+      </TouchableOpacity>
+    </FormularioAcceso>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.three,
+  enlace: { minHeight: 48, justifyContent: "center" },
+  logo: {
+    width: "100%",
+    height: 130,
+    alignSelf: "center",
+    marginBottom: 8,
   },
-  title: { textAlign: "center" },
+
   subtitle: { textAlign: "center", marginBottom: Spacing.three },
   input: {
+    minHeight: 48,
+    fontSize: 16,
     borderWidth: 1,
     borderRadius: Spacing.two,
     padding: Spacing.three,
   },
   boton: {
+    minHeight: 48,
     padding: Spacing.three,
     borderRadius: Spacing.two,
     alignItems: "center",

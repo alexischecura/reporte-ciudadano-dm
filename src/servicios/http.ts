@@ -25,7 +25,7 @@ export function isApiError(value: unknown): value is ApiError {
 
 export async function request<T>(
   path: string,
-  options: RequestInit & { token?: string } = {},
+  options: RequestInit & { token?: string; timeoutMs?: number } = {},
 ): Promise<T> {
   if (!API_URL) {
     throw new ApiError(
@@ -46,12 +46,40 @@ export async function request<T>(
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
-  const data = await res.json().catch(() => null);
+  const { token: _token, timeoutMs = 90_000, ...init } = options;
+  const controller = new AbortController();
+  const cancelar = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  options.signal?.addEventListener("abort", cancelar);
+  const tiempo = setTimeout(cancelar, timeoutMs);
+  let res: Response;
+  let data: any;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+    data = res.status === 204 ? null : await res.json().catch(() => null);
+    if (controller.signal.aborted)
+      throw new Error("El servidor no respondió a tiempo.");
+    if (res.ok && res.status !== 204 && data === null)
+      throw new ApiError(
+        "El servidor devolvió una respuesta incompleta. Conservamos los datos para reintentar.",
+        502,
+        "RESPUESTA_INCOMPLETA",
+      );
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      "No pudimos conectar con el servidor. Tus datos locales se conservan.",
+      0,
+      "SIN_CONEXION",
+    );
+  } finally {
+    clearTimeout(tiempo);
+    options.signal?.removeEventListener("abort", cancelar);
+  }
 
   if (!res.ok) {
     const message =

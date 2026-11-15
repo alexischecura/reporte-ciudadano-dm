@@ -14,7 +14,13 @@ export const Colors = {
     backgroundElement: '#F0F0F3',
     backgroundSelected: '#E0E1E6',
     textSecondary: '#60646C',
-    primary: '#208AEF',
+    primary: '#1769AA',
+    primaryBackground: '#1769AA',
+    surface: '#FFFFFF',
+    border: '#D1D5DB',
+    primaryMuted: '#E8F0FF',
+    errorMuted: '#FEE2E2',
+    errorBackground: '#8B1A1A',
     error: '#8B1A1A',
   },
   dark: {
@@ -23,10 +29,18 @@ export const Colors = {
     backgroundElement: '#212225',
     backgroundSelected: '#2E3135',
     textSecondary: '#B0B4BA',
-    primary: '#4C9AFF',
+    primary: '#80B8FF',
+    primaryBackground: '#245CAA',
+    surface: '#17191D',
+    border: '#454A52',
+    primaryMuted: '#192F4D',
+    errorMuted: '#451F25',
+    errorBackground: '#8B1A1A',
     error: '#FF8A8A',
   },
 } as const;
+
+export type ThemeColors = (typeof Colors)[keyof typeof Colors];
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 

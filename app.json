@@ -13,11 +13,14 @@
     },
     "android": {
       "package": "com.uner.reporteciudadano",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDqGcbtEbzOLm5m7mcPKcGZV5u3NCgp6dw"
+        }
+      },
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -41,7 +44,10 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180
+          "imageWidth": 180,
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
       ],
       [
@@ -64,10 +70,17 @@
         }
       ],
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-local-authentication",
         {
           "faceIDPermission": "Permití usar Face ID para desbloquear Reporte Ciudadano."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "AIzaSyDqGcbtEbzOLm5m7mcPKcGZV5u3NCgp6dw"
         }
       ],
       "expo-image",
@@ -81,9 +94,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "821f7b40-f7b4-48ee-80dd-6ccbd9f5edc2"
+        "projectId": "df414a62-3d16-4da1-9da2-a50c0078eee8"
       }
     },
-    "owner": "alangarciatalma"
+    "owner": "alexischecuras-team"
   }
 }

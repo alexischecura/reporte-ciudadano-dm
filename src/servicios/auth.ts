@@ -37,7 +37,8 @@ function mapearError(
   return {
     error: {
       codigo: "SIN_CONEXION",
-      mensaje: "No pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.",
+      mensaje:
+        "No pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.",
     },
   };
 }
@@ -75,17 +76,41 @@ export async function registrar(
     });
     return { datos: sesion };
   } catch (error) {
-    return mapearError("No se pudo crear la cuenta.", "REGISTRO_FALLIDO", error);
+    return mapearError(
+      "No se pudo crear la cuenta.",
+      "REGISTRO_FALLIDO",
+      error,
+    );
   }
 }
 
 export async function validarToken(
   token: string,
+  timeoutMs = 12_000,
 ): Promise<RespuestaApi<Usuario>> {
   try {
-    const usuario = await request<Usuario>("/yo", { method: "GET", token });
+    const usuario = await request<Usuario>("/yo", {
+      method: "GET",
+      token,
+      timeoutMs,
+    });
     return { datos: usuario };
   } catch (error) {
-    return mapearError("No se pudo validar la sesión.", "VALIDACION_FALLIDA", error);
+    if (
+      error instanceof ApiError &&
+      (error.status >= 500 || error.status === 408 || error.status === 429)
+    ) {
+      return {
+        error: {
+          codigo: "SIN_CONEXION",
+          mensaje: "El servidor no está disponible. Conservamos tu sesión.",
+        },
+      };
+    }
+    return mapearError(
+      "No se pudo validar la sesión.",
+      "VALIDACION_FALLIDA",
+      error,
+    );
   }
 }

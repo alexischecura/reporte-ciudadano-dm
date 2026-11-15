@@ -1,6 +1,11 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -11,7 +16,10 @@ import {
 } from "react-native";
 import MapView, { MapPressEvent, Marker, Region } from "react-native-maps";
 
+import type { Reporte } from "@/tipos";
+import { fueraDeZonaMunicipal } from "@/utils/ubicacion";
 import { useTheme } from "@/hooks/use-theme";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Ubicacion = {
   latitude: number;
@@ -20,10 +28,13 @@ type Ubicacion = {
 };
 
 type Props = {
+  reportesCercanos?: Reporte[];
+  onSelectionStart?: () => void;
   onLocationSelect?: (ubicacion: Ubicacion) => void;
   initialLocation?: {
     latitude: number;
     longitude: number;
+    direccion?: string;
   };
 };
 
@@ -54,11 +65,14 @@ const distanciaMetros = (
 };
 
 export default function SelectorUbicacion({
+  reportesCercanos = [],
   onLocationSelect,
+  onSelectionStart,
   initialLocation,
 }: Props) {
   const colores = useTheme();
   const mapRef = useRef<MapView>(null);
+  const seleccionId = useRef(0);
 
   const [seleccion, setSeleccion] = useState<Ubicacion | null>(null);
   const [ubicacionActual, setUbicacionActual] =
@@ -75,6 +89,17 @@ export default function SelectorUbicacion({
   const obtenerDireccion = useCallback(
     async (latitude: number, longitude: number) => {
       try {
+        // Android requiere permisos para obtener una dirección.
+        const permiso = await Location.getForegroundPermissionsAsync();
+
+        if (permiso.status !== "granted") {
+          const solicitud = await Location.requestForegroundPermissionsAsync();
+
+          if (solicitud.status !== "granted") {
+            return "Dirección no disponible. Permití el acceso a la ubicación.";
+          }
+        }
+
         const resultados = await Location.reverseGeocodeAsync({
           latitude,
           longitude,
@@ -108,7 +133,9 @@ export default function SelectorUbicacion({
         return partes.length
           ? [...new Set(partes)].join(", ")
           : "Dirección no disponible";
-      } catch {
+      } catch (error) {
+        console.error("[UBICACION] Error al obtener dirección:", error);
+
         return "No se pudo obtener la dirección";
       }
     },
@@ -117,11 +144,21 @@ export default function SelectorUbicacion({
 
   const seleccionarPunto = useCallback(
     async (latitude: number, longitude: number) => {
+      const intento = ++seleccionId.current;
+      onSelectionStart?.();
       setCargando(true);
       setError("");
 
+      const provisional = {
+        latitude,
+        longitude,
+        direccion: "Dirección no disponible",
+      };
+      setSeleccion(provisional);
+      onLocationSelect?.(provisional);
       try {
         const direccion = await obtenerDireccion(latitude, longitude);
+        if (intento !== seleccionId.current) return;
 
         const nuevaUbicacion: Ubicacion = {
           latitude,
@@ -132,10 +169,10 @@ export default function SelectorUbicacion({
         setSeleccion(nuevaUbicacion);
         onLocationSelect?.(nuevaUbicacion);
       } finally {
-        setCargando(false);
+        if (intento === seleccionId.current) setCargando(false);
       }
     },
-    [obtenerDireccion, onLocationSelect],
+    [obtenerDireccion, onLocationSelect, onSelectionStart],
   );
 
   const manejarToqueMapa = (evento: MapPressEvent) => {
@@ -145,6 +182,8 @@ export default function SelectorUbicacion({
   };
 
   const usarPosicionActual = async () => {
+    const intento = ++seleccionId.current;
+    onSelectionStart?.();
     setModalVisible(false);
     setCargando(true);
     setError("");
@@ -152,6 +191,7 @@ export default function SelectorUbicacion({
     try {
       const permiso = await Location.requestForegroundPermissionsAsync();
 
+      if (intento !== seleccionId.current) return;
       if (permiso.status !== "granted") {
         setError(
           "No hay permiso de ubicación. Podés seleccionar un punto tocando el mapa.",
@@ -163,6 +203,7 @@ export default function SelectorUbicacion({
         accuracy: Location.Accuracy.Balanced,
       });
 
+      if (intento !== seleccionId.current) return;
       const coords = posicion.coords;
       setUbicacionActual(coords);
 
@@ -179,26 +220,42 @@ export default function SelectorUbicacion({
 
       await seleccionarPunto(coords.latitude, coords.longitude);
     } catch {
+      if (intento !== seleccionId.current) return;
       setError(
         "No se pudo obtener tu ubicación. Verificá que el GPS esté activado.",
       );
     } finally {
-      setCargando(false);
+      if (intento === seleccionId.current) setCargando(false);
     }
   };
 
+  const notificarUbicacionInicial = useEffectEvent((ubicacion: Ubicacion) => {
+    onLocationSelect?.(ubicacion);
+  });
+  const latitudInicial = initialLocation?.latitude;
+  const longitudInicial = initialLocation?.longitude;
+  const direccionInicial = initialLocation?.direccion;
+
   useEffect(() => {
-    if (!initialLocation) return;
+    if (latitudInicial == null || longitudInicial == null) return;
+    let activo = true;
+    const intento = ++seleccionId.current;
 
-    const nuevaRegion = {
-      ...CENTRO_GUALEGUAYCHU,
-      ...initialLocation,
+    async function cargarUbicacionInicial(latitude: number, longitude: number) {
+      const direccion =
+        direccionInicial ?? (await obtenerDireccion(latitude, longitude));
+      if (!activo || intento !== seleccionId.current) return;
+      const ubicacion = { latitude, longitude, direccion };
+      setRegion({ ...CENTRO_GUALEGUAYCHU, latitude, longitude });
+      setSeleccion(ubicacion);
+      notificarUbicacionInicial(ubicacion);
+    }
+
+    void cargarUbicacionInicial(latitudInicial, longitudInicial);
+    return () => {
+      activo = false;
     };
-
-    setRegion(nuevaRegion);
-
-    void seleccionarPunto(initialLocation.latitude, initialLocation.longitude);
-  }, [initialLocation?.latitude, initialLocation?.longitude]);
+  }, [latitudInicial, longitudInicial, direccionInicial, obtenerDireccion]);
 
   // Si el punto seleccionado está a menos de 25 m,
   // no duplicamos el marcador de ubicación actual.
@@ -216,7 +273,7 @@ export default function SelectorUbicacion({
       borderRadius: 14,
     },
     boton: {
-      backgroundColor: colores.primary,
+      backgroundColor: colores.primaryBackground,
       borderRadius: 12,
       paddingVertical: 14,
       paddingHorizontal: 16,
@@ -322,6 +379,19 @@ export default function SelectorUbicacion({
           showsMyLocationButton={false}
           toolbarEnabled={false}
         >
+          {reportesCercanos.map((reporte) => (
+            <Marker
+              key={reporte.id}
+              coordinate={{
+                latitude: reporte.coordenadas.latitud,
+                longitude: reporte.coordenadas.longitud,
+              }}
+              title={`Reporte cercano · ${reporte.codigo}`}
+              description={reporte.direccion}
+              pinColor="#A35C00"
+              onPress={(evento) => evento.stopPropagation()}
+            />
+          ))}
           {seleccion && (
             <Marker
               coordinate={{
@@ -349,7 +419,7 @@ export default function SelectorUbicacion({
                   width: 22,
                   height: 22,
                   borderRadius: 11,
-                  backgroundColor: colores.primary,
+                  backgroundColor: colores.primaryBackground,
                   borderWidth: 4,
                   borderColor: colores.background,
                   alignItems: "center",
@@ -374,6 +444,12 @@ export default function SelectorUbicacion({
         Tocá el mapa para seleccionar una ubicación o utilizá tu posición
         actual.
       </Text>
+      {reportesCercanos.length > 0 && (
+        <Text style={styles.textoAyuda}>
+          Los marcadores naranjas son reclamos abiertos a 50 m o menos.
+          Revisalos debajo antes de crear uno nuevo.
+        </Text>
+      )}
 
       <Pressable
         style={styles.boton}
@@ -407,6 +483,20 @@ export default function SelectorUbicacion({
           <Text style={styles.errorTexto}>{error}</Text>
         </View>
       )}
+
+      {seleccion &&
+        fueraDeZonaMunicipal({
+          latitud: seleccion.latitude,
+          longitud: seleccion.longitude,
+        }) && (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <Text style={styles.errorTexto}>
+              Esta ubicación está fuera de la zona de acción de la Municipalidad
+              de Gualeguaychú. Seleccioná un punto dentro de la ciudad o sus
+              alrededores.
+            </Text>
+          </View>
+        )}
 
       <View style={styles.direccionBox}>
         <View

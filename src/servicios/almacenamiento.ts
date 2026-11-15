@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from "expo-file-system";
 
-import { request } from "./http";
+import { ApiError, request } from "./http";
 import { obtenerToken } from "./sesion";
 
 /**
@@ -50,30 +50,6 @@ async function copiarAReporte(
   return destino.uri;
 }
 
-function mimeTypeDesdeUri(uri: string): string {
-  const extension = uri.split(".").pop()?.toLowerCase() ?? "";
-
-  switch (extension) {
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "png":
-      return "image/png";
-    case "webp":
-      return "image/webp";
-    case "m4a":
-      return "audio/m4a";
-    case "aac":
-      return "audio/aac";
-    case "mp3":
-      return "audio/mpeg";
-    case "mp4":
-      return "video/mp4";
-    default:
-      return "application/octet-stream";
-  }
-}
-
 /** Guarda una foto en persistente y devuelve su URI. */
 export async function guardarFoto(
   uriTemporal: string,
@@ -99,7 +75,11 @@ export async function subirArchivoAlServidor(uriLocal: string, token?: string) {
 
   const archivo = new File(uriLocal);
   if (!archivo.exists)
-    throw new Error("El archivo local no existe o ya fue borrado.");
+    throw new ApiError(
+      "Falta un archivo local. El reporte se conserva, pero necesita revisión.",
+      422,
+      "ARCHIVO_LOCAL_NO_ENCONTRADO",
+    );
 
   const form = new FormData();
   form.append("archivo", archivo as any);
@@ -149,4 +129,10 @@ export function limpiarReporte(idReporte: string): void {
   } catch {
     // Mejor esfuerzo.
   }
+}
+
+/** La cola necesita saber si falló la limpieza para reintentar tras reiniciar. */
+export function limpiarReporteEstricto(id: string): void {
+  const dir = directorioReporte(id);
+  if (dir.exists) dir.delete();
 }

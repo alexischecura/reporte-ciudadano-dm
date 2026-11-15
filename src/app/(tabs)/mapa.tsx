@@ -1,13 +1,18 @@
-// 🔴 TODO: Codigo repetido con src/componentes/SeguimientoVecino.tsx (tarjetas y qr), refactorizar a un componente comun.
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
+import { DetalleReporteModal } from "@/components/reportes/detalle-reporte-modal";
 
-import type { CambioDeEstado, Reporte, TipoDeReporte } from "@/tipos";
+import * as Location from "expo-location";
+import { FiltrosMapa } from "@/components/reportes/filtros-mapa";
+import { filtrarReportesMapa, RADIO_EXPLORACION_METROS } from "@/utils/ubicacion";
+import { useSesion } from "@/contexts/sesion-context";
+import type { CambioDeEstado, Coordenadas, EstadoReporte, Reporte, TipoDeReporte } from "@/tipos";
 import { vibracionSuave } from "@/utils/haptica";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import React, { ComponentProps, useCallback, useEffect, useState } from "react";
+import React, { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,15 +20,18 @@ import {
 } from "react-native";
 import MapView, {
   Marker,
+  Circle,
   PROVIDER_GOOGLE,
   type Region,
 } from "react-native-maps";
-import QRCode from "react-native-qrcode-svg";
 
 import {
-  listarReportes,
+  adherirseAReporte,
+  listarReportesDelMapa,
   listarTiposDeReporte,
   obtenerCambiosDeReporte,
+  obtenerEstadoAdhesionReporte,
+  obtenerReporte,
 } from "@/servicios/reportes";
 
 const CENTRO_GUALEGUAYCHU: Region = {
@@ -62,68 +70,121 @@ const estadoConfig: Record<
 };
 
 export default function Mapa() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [seleccionado, setSeleccionado] = useState<Reporte | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Actualizar los marcadores cada vez que se vuelve a esta pestaña.
-  // Conservamos los marcadores anteriores mientras se consulta la API.
-  useFocusEffect(
-    useCallback(() => {
-      let activo = true;
+  const mapRef = useRef<MapView>(null);
+  const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoReporte | null>(null);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [cercaDe, setCercaDe] = useState<Coordenadas | null>(null);
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [errorUbicacion, setErrorUbicacion] = useState<string | null>(null);
+  const [permisoBloqueado, setPermisoBloqueado] = useState(false);
+  const visibles = filtrarReportesMapa(reportes, tipoFiltro, estadoFiltro, cercaDe);
 
-      async function cargarDatos() {
-        try {
-          setError(null);
-
-          const [reportesApi, tiposApi] = await Promise.all([
-            listarReportes(),
-            listarTiposDeReporte(),
-          ]);
-
-          if (!activo) return;
-
-          setReportes(reportesApi);
-          setTipos(tiposApi);
-          setSeleccionado((anterior) =>
-            anterior
-              ? (reportesApi.find((reporte) => reporte.id === anterior.id) ??
-                null)
-              : null,
-          );
-        } catch {
-          if (activo) {
-            setError("No se pudieron cargar los reportes del mapa.");
-          }
-        } finally {
-          if (activo) setCargando(false);
-        }
+  const mostrarCercanos = async () => {
+    setErrorUbicacion(null);
+    setPermisoBloqueado(false);
+    setSeleccionado(null);
+    if (cercaDe) {
+      setCercaDe(null);
+      return;
+    }
+    setBuscandoUbicacion(true);
+    try {
+      const permiso = await Location.requestForegroundPermissionsAsync();
+      if (!permiso.granted) {
+        setPermisoBloqueado(!permiso.canAskAgain);
+        setErrorUbicacion("Permití el acceso a la ubicación para ver reportes cerca de vos. Podés seguir explorando todos los reportes.");
+        return;
       }
+      const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCercaDe({ latitud: coords.latitude, longitud: coords.longitude });
+      mapRef.current?.animateToRegion({
+        latitude: coords.latitude, longitude: coords.longitude,
+        latitudeDelta: 0.025, longitudeDelta: 0.025,
+      }, 350);
+    } catch {
+      setErrorUbicacion("No pudimos obtener tu ubicación. Revisá que el GPS esté activado e intentá nuevamente.");
+    } finally {
+      setBuscandoUbicacion(false);
+    }
+  };
 
-      void cargarDatos();
+  const cargarDatos = useCallback(async (estaActivo: () => boolean = () => true) => {
+    try {
+      setError(null);
+      setCargando(true);
+      const [reportesApi, tiposApi] = await Promise.all([
+        listarReportesDelMapa(), listarTiposDeReporte(),
+      ]);
+      if (!estaActivo()) return;
+      setReportes(reportesApi);
+      setTipos(tiposApi);
+      setSeleccionado((anterior) => anterior
+        ? (reportesApi.find((reporte) => reporte.id === anterior.id) ?? null)
+        : null);
+    } catch {
+      if (estaActivo()) setError("No se pudieron cargar los reportes del mapa.");
+    } finally {
+      if (estaActivo()) setCargando(false);
+    }
+  }, []);
 
-      return () => {
-        activo = false;
-      };
-    }, []),
-  );
-
-  const getTipoReporte = (tipoId: string) =>
-    tipos.find((tipo) => tipo.id === tipoId) ?? null;
+  // Actualizar los marcadores al volver a esta pestaña.
+  useFocusEffect(useCallback(() => {
+    let activo = true;
+    void cargarDatos(() => activo);
+    return () => { activo = false; };
+  }, [cargarDatos]));
 
   return (
     <View style={styles.container}>
+      <FiltrosMapa
+        tipos={tipos}
+        tipoId={tipoFiltro}
+        estado={estadoFiltro}
+        abiertos={filtrosAbiertos}
+        cerca={cercaDe !== null}
+        buscandoUbicacion={buscandoUbicacion}
+        errorUbicacion={errorUbicacion}
+        permisoBloqueado={permisoBloqueado}
+        cargando={cargando}
+        sinResultados={!cargando && !error && !visibles.length}
+        cantidad={visibles.length}
+        onTipo={(tipoId) => { setTipoFiltro(tipoId); setSeleccionado(null); }}
+        onEstado={(estado) => { setEstadoFiltro(estado); setSeleccionado(null); }}
+        onAlternar={() => setFiltrosAbiertos(!filtrosAbiertos)}
+        onCercania={() => void mostrarCercanos()}
+        onLimpiar={() => {
+          setTipoFiltro(null);
+          setEstadoFiltro(null);
+          setCercaDe(null);
+          setSeleccionado(null);
+          setErrorUbicacion(null);
+          setPermisoBloqueado(false);
+        }}
+      />
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={CENTRO_GUALEGUAYCHU}
         toolbarEnabled={false}
         onPress={() => setSeleccionado(null)}
       >
+        {cercaDe && <>
+          <Circle center={{ latitude: cercaDe.latitud, longitude: cercaDe.longitud }} radius={RADIO_EXPLORACION_METROS} strokeColor="#208AEF" fillColor="rgba(32,138,239,0.08)" />
+          <Marker coordinate={{ latitude: cercaDe.latitud, longitude: cercaDe.longitud }} title="Tu ubicación" pinColor="#208AEF" />
+        </>}
         {!cargando &&
-          reportes.map((reporte) => {
+          visibles.map((reporte) => {
             const activo = reporte.id === seleccionado?.id;
             const icono =
               TIPOS[reporte.tipoId]?.icono || TIPOS["tip-desconocido"]?.icono;
@@ -163,22 +224,39 @@ export default function Mapa() {
           })}
       </MapView>
 
-      {cargando ? (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color="#1F6FEB" />
-          <Text style={styles.loadingText}>Cargando reportes…</Text>
-        </View>
-      ) : error ? (
+      {error && (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText}>{error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.limpiarFiltros}
+            onPress={() => void cargarDatos()}
+          >
+            <Text style={styles.filtroTexto}>Reintentar</Text>
+          </Pressable>
         </View>
-      ) : null}
+      )}
 
       {seleccionado && (
         <TarjetaReporte
+          key={seleccionado.id}
           reporte={seleccionado}
           tipos={tipos}
+          onObtenerDetalle={obtenerReporte}
           onObtenerHistorial={obtenerCambiosDeReporte}
+          onAdherirse={adherirseAReporte}
+          onActualizarReporte={(reporteActualizado) => {
+            setReportes((prev) =>
+              prev.map((item) =>
+                item.id === reporteActualizado.id ? reporteActualizado : item,
+              ),
+            );
+            setSeleccionado((prev) =>
+              prev && prev.id === reporteActualizado.id
+                ? reporteActualizado
+                : prev,
+            );
+          }}
         />
       )}
     </View>
@@ -188,28 +266,64 @@ export default function Mapa() {
 const TarjetaReporte = ({
   reporte,
   tipos,
+  onObtenerDetalle,
   onObtenerHistorial,
+  onAdherirse,
+  onActualizarReporte,
 }: {
   reporte: Reporte;
   tipos: TipoDeReporte[];
+  onObtenerDetalle: (reporteId: string) => Promise<Reporte>;
   onObtenerHistorial: (reporteId: string) => Promise<CambioDeEstado[]>;
+  onAdherirse: (reporteId: string) => Promise<Reporte>;
+  onActualizarReporte: (reporteActualizado: Reporte) => void;
 }) => {
+  const { usuario } = useSesion();
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const tipo = tipos.find((item) => item.id === reporte.tipoId) ?? null;
-  const estado = estadoConfig[reporte.estado];
   const [detalleVisible, setDetalleVisible] = useState(false);
+  const [detalleReporte, setDetalleReporte] = useState<Reporte | null>(null);
   const [historialReporte, setHistorialReporte] = useState<CambioDeEstado[]>(
     [],
   );
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [cargandoAdhesion, setCargandoAdhesion] = useState(false);
+  const [adherido, setAdherido] = useState(false);
+
+  const reporteActual = detalleReporte ?? reporte;
+  const estado = estadoConfig[reporteActual.estado];
+  const puedeAdherirse =
+    !!usuario &&
+    usuario.id !== reporteActual.autorId &&
+    !cargandoAdhesion &&
+    !adherido &&
+    !cargandoAdhesion;
 
   useEffect(() => {
-    if (!detalleVisible) {
-      setHistorialReporte([]);
-      return;
+    if (!detalleVisible) return;
+
+    let activo = true;
+
+    async function cargarDetalle() {
+      try {
+        setCargandoDetalle(true);
+        const detalle = await onObtenerDetalle(reporte.id);
+        if (!activo) return;
+        setDetalleReporte(detalle);
+      } catch {
+        if (activo) {
+          setDetalleReporte(reporte);
+        }
+      } finally {
+        if (activo) setCargandoDetalle(false);
+      }
     }
 
     async function cargarHistorial() {
       try {
         const cambios = await onObtenerHistorial(reporte.id);
+        if (!activo) return;
         setHistorialReporte(
           [...cambios].sort(
             (a, b) =>
@@ -217,12 +331,65 @@ const TarjetaReporte = ({
           ),
         );
       } catch {
-        setHistorialReporte([]);
+        if (activo) setHistorialReporte([]);
       }
     }
 
+    async function cargarEstadoAdhesion() {
+      if (!usuario || usuario.id === reporte.autorId) {
+        setAdherido(false);
+        return;
+      }
+
+      try {
+        setCargandoAdhesion(true);
+        const estadoAdhesion = await obtenerEstadoAdhesionReporte(reporte.id);
+        if (!activo) return;
+        setAdherido(estadoAdhesion);
+      } catch {
+        if (activo) setAdherido(false);
+      } finally {
+        if (activo) setCargandoAdhesion(false);
+      }
+    }
+
+    void cargarDetalle();
     void cargarHistorial();
-  }, [detalleVisible, onObtenerHistorial, reporte.id]);
+    void cargarEstadoAdhesion();
+
+    return () => {
+      activo = false;
+    };
+  }, [detalleVisible, onObtenerDetalle, onObtenerHistorial, reporte, usuario]);
+
+  const cerrarDetalle = () => {
+    setDetalleVisible(false);
+    setDetalleReporte(null);
+    setHistorialReporte([]);
+  };
+
+  const abrirDetalle = async () => {
+    await vibracionSuave();
+    setDetalleReporte(null);
+    setHistorialReporte([]);
+    setDetalleVisible(true);
+  };
+
+  const manejarAdhesion = async () => {
+    if (!usuario || usuario.id === reporteActual.autorId) return;
+
+    try {
+      setCargandoAdhesion(true);
+      const actualizado = await onAdherirse(reporteActual.id);
+      setDetalleReporte(actualizado);
+      setAdherido(true);
+      onActualizarReporte(actualizado);
+    } catch {
+      // No se muestra error adicional para evitar romper el flujo del modal.
+    } finally {
+      setCargandoAdhesion(false);
+    }
+  };
 
   return (
     <View style={styles.card}>
@@ -253,98 +420,65 @@ const TarjetaReporte = ({
 
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={async () => {
-          await vibracionSuave();
-          setDetalleVisible(true);
-        }}
+        onPress={abrirDetalle}
         style={styles.primaryButton}
       >
-        <Text style={styles.primaryButtonText}>Ver Seguimiento y QR</Text>
+        <Text style={styles.primaryButtonText}>Ver detalle y QR</Text>
       </TouchableOpacity>
 
-      <Modal
-        visible={detalleVisible !== false}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetalleVisible(false)}
+      <DetalleReporteModal
+        visible={detalleVisible}
+        reporte={reporteActual}
+        tipo={tipo}
+        historialReporte={historialReporte}
+        cargandoDetalle={cargandoDetalle}
+        qrValue={reporteActual.id}
+        onCerrar={cerrarDetalle}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{reporte?.codigo}</Text>
+        {usuario &&
+        usuario.id !== reporteActual.autorId &&
+        adherido ? (
+          <Text style={styles.estadoAdhesionText}>
+            Ya estás adherido a este reporte.
+          </Text>
+        ) : null}
 
-            <View style={styles.qrContainer}>
-              <QRCode
-                value={reporte.id}
-                size={200}
-                backgroundColor="white"
-                color="#111827"
-              />
-            </View>
-
-            <Text style={styles.helperText}>
-              Muestre este código en ventanilla para consultar su trámite.
+        {usuario &&
+        usuario.id !== reporteActual.autorId &&
+        !adherido ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={async () => {
+              await vibracionSuave();
+              await manejarAdhesion();
+            }}
+            style={[
+              styles.adherirButton,
+              !puedeAdherirse && styles.adherirButtonDisabled,
+            ]}
+            disabled={!puedeAdherirse}
+          >
+            <Text style={styles.adherirButtonText}>
+              {cargandoAdhesion
+                ? "Adhiriendo..."
+                : "Adherirme a este reporte"}
             </Text>
+          </TouchableOpacity>
+        ) : null}
 
-            <View style={styles.timelineContainer}>
-              <Text style={styles.timelineTitle}>Seguimiento</Text>
+        {!usuario ? (
+          <Text style={styles.emptyText}>
+            Iniciá sesión para adherirte a este reporte.
+          </Text>
+        ) : null}
 
-              {(historialReporte.length > 0 ? historialReporte : []).map(
-                (cambio, index, items) => (
-                  <React.Fragment key={cambio.id}>
-                    <View style={styles.timelineRow}>
-                      <View
-                        style={[
-                          styles.timelineDot,
-                          cambio.estado === reporte?.estado &&
-                            styles.timelineDotActive,
-                        ]}
-                      />
-                      <View style={styles.timelineTextWrap}>
-                        <Text style={styles.timelineText}>
-                          {estadoConfig[cambio.estado]?.label ?? cambio.estado}
-                        </Text>
-                        {cambio.comentario ? (
-                          <Text style={styles.timelineComment}>
-                            {cambio.comentario}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
+        {usuario && usuario.id === reporteActual.autorId ? (
+          <Text style={styles.emptyText}>
+            Este reporte es tuyo, así que no podés adherirte.
+          </Text>
+        ) : null}
 
-                    {index < items.length - 1 ? (
-                      <View style={styles.timelineLine} />
-                    ) : null}
-                  </React.Fragment>
-                ),
-              )}
-
-              {historialReporte.length === 0 && reporte && (
-                <View style={styles.timelineRow}>
-                  <View
-                    style={[styles.timelineDot, styles.timelineDotActive]}
-                  />
-                  <View style={styles.timelineTextWrap}>
-                    <Text style={styles.timelineText}>
-                      {estadoConfig[reporte?.estado]?.label ?? reporte?.estado}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={async () => {
-                await vibracionSuave();
-                setDetalleVisible(false);
-              }}
-              style={styles.closeButton}
-            >
-              <Text style={styles.closeButtonText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </DetalleReporteModal>
     </View>
   );
 };
@@ -359,14 +493,14 @@ const formatFecha = (fechaIso: string): string => {
   }).format(fecha);
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
-  map: {
-    width: "100%",
-    height: "100%",
-  },
+  map: { flex: 1 },
+  filtroTexto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  limpiarFiltros: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
   pin: {
     alignItems: "center",
     justifyContent: "center",
@@ -377,35 +511,12 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
-  loadingOverlay: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    top: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  loadingText: {
-    color: "#1F2937",
-    fontSize: 14,
-    fontWeight: "600",
-  },
   errorOverlay: {
     position: "absolute",
     left: 16,
     right: 16,
     bottom: 120,
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -413,7 +524,7 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   errorText: {
-    color: "#991B1B",
+    color: colors.error,
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
@@ -430,7 +541,7 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     shadowColor: "#000000",
@@ -452,11 +563,11 @@ const styles = StyleSheet.create({
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   codigoTexto: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "600",
     marginTop: 3,
   },
@@ -479,15 +590,15 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#111827",
+    color: colors.text,
   },
   primaryButton: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
@@ -497,96 +608,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 18,
-  },
-  qrContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 14,
-  },
-  helperText: {
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  timelineContainer: {
-    width: "100%",
-    paddingHorizontal: 8,
-    marginBottom: 20,
-  },
-  timelineTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "#D1D5DB",
-    marginTop: 6,
-  },
-  timelineDotActive: {
-    backgroundColor: "#1F6FEB",
-  },
-  timelineTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  timelineText: {
-    fontSize: 14,
-    color: "#374151",
-    fontWeight: "600",
-  },
-  timelineComment: {
-    fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 18,
-  },
-  timelineLine: {
-    width: 2,
-    height: 16,
-    backgroundColor: "#D1D5DB",
-    marginLeft: 4,
-    marginVertical: 4,
-  },
-  closeButton: {
-    width: "100%",
-    backgroundColor: "#111827",
+  adherirButton: {
+    backgroundColor: "#16A34A",
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
+    marginBottom: 18,
   },
-  closeButtonText: {
+  adherirButtonDisabled: {
+    opacity: 0.6,
+  },
+  adherirButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
     fontWeight: "700",
+    fontSize: 14,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 18,
+  },
+  estadoAdhesionText: {
+    fontSize: 14,
+    color: "#166534",
+    fontWeight: "700",
+    marginBottom: 18,
+    backgroundColor: "#DCFCE7",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    textAlign: "center",
   },
 });
