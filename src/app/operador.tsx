@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import React, { useState, useCallback } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -9,6 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { listarBandejaOperador } from "@/servicios/reportes";
 
 export default function OperadorScreen() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reportes, setReportes] = useState([]);
   const [estado, setEstado] = useState("");
   const [zonaId, setZonaId] = useState("");
@@ -51,7 +55,7 @@ export default function OperadorScreen() {
             accessibilityRole="button"
             accessibilityLabel="Abrir perfil"
           >
-            <Ionicons name="settings-outline" size={24} color="#253046" />
+            <Ionicons name="settings-outline" size={24} color={colors.text} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -63,13 +67,13 @@ export default function OperadorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: colors.background,
   },
   safeArea: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
   },
   header: {
     minHeight: 62,
@@ -78,18 +82,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#E8ECF0",
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 21,
     fontWeight: "700",
-    color: "#152033",
+    color: colors.text,
   },
   settingsButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F0F3F7",
+    backgroundColor: colors.backgroundElement,
     alignItems: "center",
     justifyContent: "center",
   },

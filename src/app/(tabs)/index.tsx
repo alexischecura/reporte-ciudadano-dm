@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ThemedView } from "@/components/themed-view";
@@ -6,6 +8,8 @@ import { Link } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { usuario, logout } = useSesion();
 
   return (
@@ -48,7 +52,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -76,7 +80,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     flexShrink: 1,
-    color: "#202020",
+    color: colors.text,
   },
 
   logoutButton: {
@@ -88,7 +92,7 @@ const styles = StyleSheet.create({
 
   logoutText: {
     fontSize: 16,
-    color: "#208AEF",
+    color: colors.primary,
     textAlign: "center",
   },
 
@@ -101,7 +105,7 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 64,
     borderRadius: 12,
-    backgroundColor: "#208AEF",
+    backgroundColor: colors.primaryBackground,
     paddingHorizontal: 20,
     paddingVertical: 16,
     alignItems: "center",

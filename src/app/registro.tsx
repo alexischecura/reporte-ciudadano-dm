@@ -65,7 +65,7 @@ export default function RegistroScreen() {
         <TextInput style={[styles.input, { borderColor: colors.backgroundSelected, color: colors.text }]}
           placeholder="Contraseña" placeholderTextColor={colors.textSecondary}
           value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
-        {error && <ThemedText style={styles.error}>{error}</ThemedText>}
+        {error && <ThemedText style={[styles.error, { color: colors.error }]}>{error}</ThemedText>}
         <TouchableOpacity style={[styles.boton, { backgroundColor: colors.text }]}
           onPress={() => void handleRegistro()} disabled={enviando}>
           <ThemedText style={{ color: colors.background }}>

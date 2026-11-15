@@ -1,3 +1,4 @@
+import { useTheme } from "@/hooks/use-theme";
 import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
 import { useState } from 'react';
@@ -9,6 +10,7 @@ const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
 const DURATION = 600;
 
 export function AnimatedSplashOverlay() {
+  const colors = useTheme();
   const [animate, setAnimate] = useState(false);
   const [visible, setVisible] = useState(true);
 
@@ -43,7 +45,7 @@ export function AnimatedSplashOverlay() {
           scheduleOnRN(setVisible, false);
         }
       })}
-      style={styles.splashOverlay}>
+      style={[styles.splashOverlay, { backgroundColor: colors.background }]}>
       {image}
     </Animated.View>
   ) : (
@@ -53,7 +55,7 @@ export function AnimatedSplashOverlay() {
           setAnimate(true);
         });
       }}
-      style={styles.splashOverlay}>
+      style={[styles.splashOverlay, { backgroundColor: colors.background }]}>
       {image}
     </View>
   );

@@ -250,7 +250,7 @@ function FormularioReporte({ usuarioId }: { usuarioId: string }) {
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.boton, { backgroundColor: colors.primary }]}
+              style={[styles.boton, { backgroundColor: colors.primaryBackground }]}
               onPress={() => {
                 try {
                   nuevoFormulario();
@@ -455,7 +455,7 @@ function FormularioReporte({ usuarioId }: { usuarioId: string }) {
           <Pressable
             style={[
               styles.boton,
-              { backgroundColor: colors.primary },
+              { backgroundColor: colors.primaryBackground },
               !puedeEnviar && styles.botonOff,
             ]}
             disabled={!puedeEnviar}

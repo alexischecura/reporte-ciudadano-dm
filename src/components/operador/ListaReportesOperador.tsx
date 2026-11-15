@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -74,6 +76,8 @@ const formatFecha = (fechaIso: string): string => {
 };
 
 export default function ListaReportesOperador(): React.ReactElement {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [cuadrillas, setCuadrillas] = useState<Cuadrilla[]>([]);
   const [tipos, setTipos] = useState<any[]>([]);
@@ -537,7 +541,7 @@ export default function ListaReportesOperador(): React.ReactElement {
                         })}
                       </ScrollView>
                     ) : (
-                      <TextoCorregido style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>
+                      <TextoCorregido style={{ fontSize: 13, color: colors.textSecondary, marginTop: 4 }}>
                         No hay cuadrillas activas para la zona de este reporte.
                       </TextoCorregido>
                     )}
@@ -568,7 +572,7 @@ export default function ListaReportesOperador(): React.ReactElement {
               value={comentario}
               onChangeText={setComentario}
               placeholder="Escribe el motivo..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textSecondary}
               style={styles.textInput}
               textAlignVertical="top"
             />
@@ -594,59 +598,59 @@ export default function ListaReportesOperador(): React.ReactElement {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F7FA" },
-  filtrosContainer: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingVertical: 8 },
-  filtrosSecundariosContainer: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingVertical: 6 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  filtrosContainer: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8 },
+  filtrosSecundariosContainer: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 6 },
   filtroScrollContent: { paddingHorizontal: 16, gap: 8 },
-  filtroButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#EEF2F6" },
-  filtroTexto: { fontSize: 12, fontWeight: "600", color: "#374151" },
-  filtroButtonActivo: { backgroundColor: "#1F6FEB" },
+  filtroButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.backgroundElement },
+  filtroTexto: { fontSize: 12, fontWeight: "600", color: colors.textSecondary },
+  filtroButtonActivo: { backgroundColor: colors.primaryBackground },
   filtroTextoActivo: { color: "#FFFFFF" },
-  chipSecundario: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
-  chipSecundarioActivo: { backgroundColor: "#DBEAFE", borderColor: "#3B82F6" },
-  chipTexto: { fontSize: 11, fontWeight: "500", color: "#4B5563" },
-  chipTextoActivo: { color: "#1D4ED8", fontWeight: "700" },
+  chipSecundario: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.backgroundElement, borderWidth: 1, borderColor: colors.border },
+  chipSecundarioActivo: { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
+  chipTexto: { fontSize: 11, fontWeight: "500", color: colors.textSecondary },
+  chipTextoActivo: { color: colors.primary, fontWeight: "700" },
   listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 12 },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  card: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 12 },
   titleWrap: { flex: 1 },
-  tipoTexto: { fontSize: 18, fontWeight: "700", color: "#111827" },
-  codigoTexto: { marginTop: 2, fontSize: 12, color: "#6B7280", fontWeight: "500" },
-  descripcionTexto: { fontSize: 14, lineHeight: 20, color: "#374151", marginBottom: 12 },
+  tipoTexto: { fontSize: 18, fontWeight: "700", color: colors.text },
+  codigoTexto: { marginTop: 2, fontSize: 12, color: colors.textSecondary, fontWeight: "500" },
+  descripcionTexto: { fontSize: 14, lineHeight: 20, color: colors.textSecondary, marginBottom: 12 },
   badge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   badgeText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
   metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
-  metaLabel: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  metaValue: { fontSize: 12, fontWeight: "600", color: "#111827", textAlign: "right" },
+  metaLabel: { fontSize: 12, fontWeight: "600", color: colors.textSecondary },
+  metaValue: { fontSize: 12, fontWeight: "600", color: colors.text, textAlign: "right" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(17, 24, 39, 0.45)", justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 22, fontWeight: "700", color: "#111827", marginBottom: 6 },
-  modalCodigo: { fontSize: 14, color: "#4B5563", marginBottom: 14, fontWeight: "600" },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#111827", marginBottom: 8 },
-  duplicadoToggle: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB", marginBottom: 14, alignItems: "center" },
+  modalCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 20 },
+  modalTitle: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 6 },
+  modalCodigo: { fontSize: 14, color: colors.textSecondary, marginBottom: 14, fontWeight: "600" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: 8 },
+  duplicadoToggle: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.backgroundElement, borderWidth: 1, borderColor: colors.border, marginBottom: 14, alignItems: "center" },
   duplicadoToggleActive: { backgroundColor: "#FEF3C7", borderColor: "#D97706" },
-  duplicadoToggleText: { fontSize: 13, fontWeight: "700", color: "#374151" },
+  duplicadoToggleText: { fontSize: 13, fontWeight: "700", color: colors.textSecondary },
   duplicadoToggleTextActive: { color: "#92400E" },
-  listaOriginalesScroll: { maxHeight: 160, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, marginBottom: 14, backgroundColor: "#F9FAFB" },
-  originalItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  originalItemSelected: { backgroundColor: "#DBEAFE" },
-  originalItemText: { fontSize: 13, color: "#374151", fontWeight: "500" },
-  originalItemTextSelected: { color: "#1D4ED8", fontWeight: "700" },
+  listaOriginalesScroll: { maxHeight: 160, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginBottom: 14, backgroundColor: colors.backgroundElement },
+  originalItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  originalItemSelected: { backgroundColor: colors.primaryMuted },
+  originalItemText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  originalItemTextSelected: { color: colors.primary, fontWeight: "700" },
   estadoOptions: { flexDirection: "row", flexWrap: "wrap", marginBottom: 14, gap: 8 },
-  estadoOption: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#EEF2F6", borderWidth: 1, borderColor: "#D1D5DB" },
-  estadoOptionSelected: { backgroundColor: "#E8F0FF", borderColor: "#2563EB" },
-  estadoOptionText: { fontSize: 12, color: "#374151", fontWeight: "600" },
-  estadoOptionTextSelected: { color: "#1D4ED8" },
+  estadoOption: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.backgroundElement, borderWidth: 1, borderColor: colors.border },
+  estadoOptionSelected: { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
+  estadoOptionText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
+  estadoOptionTextSelected: { color: colors.primary },
   extraSection: { marginBottom: 14 },
-  textInput: { minHeight: 70, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, padding: 12, fontSize: 14, backgroundColor: "#F9FAFB", marginBottom: 14 },
-  fotoButton: { backgroundColor: "#E8F0FF", borderRadius: 10, paddingVertical: 10, alignItems: "center", marginBottom: 10 },
-  fotoButtonText: { color: "#1D4ED8", fontWeight: "700", fontSize: 13 },
+  textInput: { color: colors.text, minHeight: 70, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, fontSize: 14, backgroundColor: colors.backgroundElement, marginBottom: 14 },
+  fotoButton: { backgroundColor: colors.primaryMuted, borderRadius: 10, paddingVertical: 10, alignItems: "center", marginBottom: 10 },
+  fotoButtonText: { color: colors.primary, fontWeight: "700", fontSize: 13 },
   previewImage: { width: "100%", height: 120, borderRadius: 12, marginBottom: 10 },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
-  secondaryButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#E5E7EB" },
-  secondaryButtonText: { color: "#111827", fontWeight: "600" },
-  primaryButton: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: "#1F6FEB" },
+  secondaryButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.backgroundSelected },
+  secondaryButtonText: { color: colors.text, fontWeight: "600" },
+  primaryButton: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primaryBackground },
   primaryButtonDisabled: { backgroundColor: "#93C5FD" },
   primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
   cardImage: { width: "100%", height: 140, borderRadius: 10, marginBottom: 12 },

@@ -96,7 +96,7 @@ export function SeccionFoto({ fotos, directorioBorrador, onCambiar }: Props) {
           onPress={() => setCamaraVisible(true)}
           style={({ pressed }) => [
             styles.boton,
-            { backgroundColor: colors.primary },
+            { backgroundColor: colors.primaryBackground },
             deshabilitado && styles.botonOff,
             pressed && !deshabilitado && styles.presionado,
           ]}

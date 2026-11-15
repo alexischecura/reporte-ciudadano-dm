@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 // 🔴 TODO: Codigo repetido con src/componentes/SeguimientoVecino.tsx (tarjetas y qr), refactorizar a un componente comun.
 
 import * as Location from "expo-location";
@@ -73,6 +75,8 @@ const estadoConfig: Record<
 };
 
 export default function Mapa() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [tipos, setTipos] = useState<TipoDeReporte[]>([]);
   const [seleccionado, setSeleccionado] = useState<Reporte | null>(null);
@@ -280,6 +284,8 @@ const TarjetaReporte = ({
   onActualizarReporte: (reporteActualizado: Reporte) => void;
 }) => {
   const { usuario } = useSesion();
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const tipo = tipos.find((item) => item.id === reporte.tipoId) ?? null;
   const [detalleVisible, setDetalleVisible] = useState(false);
   const [detalleReporte, setDetalleReporte] = useState<Reporte | null>(null);
@@ -444,7 +450,7 @@ const TarjetaReporte = ({
 
               {cargandoDetalle ? (
                 <View style={styles.loadingDetalle}>
-                  <ActivityIndicator size="small" color="#1F6FEB" />
+                  <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={styles.loadingText}>Cargando detalle…</Text>
                 </View>
               ) : (
@@ -648,12 +654,13 @@ const formatFecha = (fechaIso: string): string => {
   }).format(fecha);
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   map: { flex: 1 },
-  filtroTexto: { color: "#1F6FEB", fontSize: 14, fontWeight: "600" },
+  filtroTexto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   limpiarFiltros: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
   pin: {
     alignItems: "center",
@@ -666,7 +673,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   loadingText: {
-    color: "#1F2937",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -675,7 +682,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 120,
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -683,7 +690,7 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   errorText: {
-    color: "#991B1B",
+    color: colors.error,
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
@@ -700,7 +707,7 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     shadowColor: "#000000",
@@ -722,11 +729,11 @@ const styles = StyleSheet.create({
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   codigoTexto: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "600",
     marginTop: 3,
   },
@@ -749,15 +756,15 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#111827",
+    color: colors.text,
   },
   primaryButton: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
@@ -774,7 +781,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     maxHeight: "90%",
@@ -786,7 +793,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 18,
   },
   loadingDetalle: {
@@ -808,22 +815,22 @@ const styles = StyleSheet.create({
   heroTipo: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   heroMeta: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     marginTop: 4,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 8,
   },
   descriptionText: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 18,
   },
@@ -834,19 +841,19 @@ const styles = StyleSheet.create({
   },
   detailBox: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.backgroundElement,
     borderRadius: 12,
     padding: 12,
   },
   detailLabel: {
     fontSize: 11,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "700",
     marginBottom: 6,
   },
   detailValue: {
     fontSize: 13,
-    color: "#111827",
+    color: colors.text,
     fontWeight: "600",
   },
   qrContainer: {
@@ -854,13 +861,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     alignItems: "center",
     marginBottom: 14,
   },
   helperText: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: 20,
     lineHeight: 20,
@@ -877,13 +884,13 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 10,
     overflow: "hidden",
-    backgroundColor: "#E5E7EB",
+    backgroundColor: colors.backgroundSelected,
   },
   foto: {
     width: "100%",
     height: "100%",
     borderRadius: 10,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: colors.backgroundSelected,
   },
   adherirButton: {
     backgroundColor: "#16A34A",
@@ -902,7 +909,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: colors.textSecondary,
     marginBottom: 18,
   },
   estadoAdhesionText: {
@@ -924,7 +931,7 @@ const styles = StyleSheet.create({
   timelineTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 12,
   },
   timelineRow: {
@@ -936,11 +943,11 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: colors.border,
     marginTop: 6,
   },
   timelineDotActive: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
   },
   timelineTextWrap: {
     flex: 1,
@@ -948,18 +955,18 @@ const styles = StyleSheet.create({
   },
   timelineText: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.textSecondary,
     fontWeight: "600",
   },
   timelineComment: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   timelineLine: {
     width: 2,
     height: 16,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: colors.border,
     marginLeft: 4,
     marginVertical: 4,
   },

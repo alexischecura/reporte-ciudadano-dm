@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import {
   Alert,
   Linking,
@@ -17,6 +19,8 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function PerfilScreen() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { usuario, logout, cambiarAvisos } = useSesion();
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -139,10 +143,10 @@ export default function PerfilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: colors.background,
   },
   content: {
     flexGrow: 1,
@@ -154,11 +158,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 4,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 24,
     alignItems: "center",
@@ -169,7 +173,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#208AEF",
+    backgroundColor: colors.primaryBackground,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
@@ -182,17 +186,17 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 21,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     textAlign: "center",
   },
   email: {
     fontSize: 15,
-    color: "#6B7280",
+    color: colors.textSecondary,
     textAlign: "center",
   },
 
   roleBadge: {
-    backgroundColor: "#E8F3FF",
+    backgroundColor: colors.primaryMuted,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -205,18 +209,18 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#208AEF",
+    color: colors.primary,
     textAlign: "center",
   },
 
   sectionTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginTop: 8,
   },
   option: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     padding: 18,
     borderRadius: 14,
     flexDirection: "row",
@@ -232,25 +236,25 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   optionSubtitle: {
     fontSize: 13,
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   chevron: {
     fontSize: 26,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   logoutButton: {
     marginTop: 12,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: colors.errorMuted,
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: "center",
   },
   logoutText: {
-    color: "#B91C1C",
+    color: colors.error,
     fontWeight: "700",
     fontSize: 16,
   },

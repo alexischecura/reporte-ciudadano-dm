@@ -1,9 +1,13 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSesion } from "@/contexts/sesion-context";
 
 export default function RecuperarSesionScreen() {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { errorSesion, reintentarRestauracion, usarOtraCuenta } = useSesion();
   const [ocupado, setOcupado] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -34,14 +38,14 @@ export default function RecuperarSesionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: "#f6f9fc", justifyContent: "center", padding: 24 },
-  caja: { backgroundColor: "white", borderRadius: 18, padding: 24, gap: 18 },
-  titulo: { fontWeight: "700", fontSize: 24, color: "#17324f", textAlign: "center" },
-  descripcion: { fontSize: 16, color: "#546779", textAlign: "center" },
-  error: { color: "#b91c1c", textAlign: "center" },
-  boton: { backgroundColor: "#1769aa", borderRadius: 10, padding: 16, alignItems: "center" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  contenedor: { flex: 1, backgroundColor: colors.background, justifyContent: "center", padding: 24 },
+  caja: { backgroundColor: colors.surface, borderRadius: 18, padding: 24, gap: 18 },
+  titulo: { fontWeight: "700", fontSize: 24, color: colors.text, textAlign: "center" },
+  descripcion: { fontSize: 16, color: colors.textSecondary, textAlign: "center" },
+  error: { color: colors.error, textAlign: "center" },
+  boton: { backgroundColor: colors.primaryBackground, borderRadius: 10, padding: 16, alignItems: "center" },
   textoBoton: { color: "white", fontWeight: "700" },
-  secundario: { borderColor: "#1769aa", borderWidth: 1, borderRadius: 10, padding: 15, alignItems: "center" },
-  textoSecundario: { color: "#1769aa", fontWeight: "600" },
+  secundario: { borderColor: colors.primary, borderWidth: 1, borderRadius: 10, padding: 15, alignItems: "center" },
+  textoSecundario: { color: colors.primary, fontWeight: "600" },
 });

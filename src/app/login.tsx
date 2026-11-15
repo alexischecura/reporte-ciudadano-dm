@@ -81,7 +81,7 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        {error && <ThemedText style={styles.error}>{error}</ThemedText>}
+        {error && <ThemedText style={[styles.error, { color: colors.error }]}>{error}</ThemedText>}
 
         <TouchableOpacity
           style={[styles.boton, { backgroundColor: colors.text }]}

@@ -273,7 +273,7 @@ export default function SelectorUbicacion({
       borderRadius: 14,
     },
     boton: {
-      backgroundColor: colores.primary,
+      backgroundColor: colores.primaryBackground,
       borderRadius: 12,
       paddingVertical: 14,
       paddingHorizontal: 16,
@@ -419,7 +419,7 @@ export default function SelectorUbicacion({
                   width: 22,
                   height: 22,
                   borderRadius: 11,
-                  backgroundColor: colores.primary,
+                  backgroundColor: colores.primaryBackground,
                   borderWidth: 4,
                   borderColor: colores.background,
                   alignItems: "center",

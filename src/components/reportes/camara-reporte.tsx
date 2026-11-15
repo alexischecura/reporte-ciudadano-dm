@@ -1,3 +1,4 @@
+import { StatusBar } from "expo-status-bar";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
@@ -60,6 +61,7 @@ export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCerrar}>
+      {visible && <StatusBar style="light" />}
       <View style={styles.cont}>
         {permiso?.granted ? (
           <CameraView
@@ -75,7 +77,7 @@ export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
               La foto del problema es obligatoria. Aceptá el permiso para continuar.
             </Text>
             <Pressable
-              style={[styles.boton, { backgroundColor: colors.primary }]}
+              style={[styles.boton, { backgroundColor: colors.primaryBackground }]}
               onPress={() => {
                 void asegurarPermiso();
               }}>
@@ -95,7 +97,7 @@ export function CamaraReporte({ visible, onCerrar, onFoto }: Props) {
             <Pressable
               style={[
                 styles.boton,
-                { backgroundColor: colors.primary },
+                { backgroundColor: colors.primaryBackground },
                 capturando && styles.botonOff,
               ]}
               onPress={() => {

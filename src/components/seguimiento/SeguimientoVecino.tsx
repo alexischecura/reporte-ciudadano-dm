@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import React, {
   useCallback,
   useEffect,
@@ -89,6 +91,8 @@ const formatFecha = (fechaIso: string): string => {
 };
 
 export default function SeguimientoVecino(): React.ReactElement {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reporteSeleccionado, setReporteSeleccionado] =
     useState<Reporte | null>(null);
   const { usuario, modoOffline } = useSesion();
@@ -528,28 +532,28 @@ export default function SeguimientoVecino(): React.ReactElement {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: colors.background,
   },
   header: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     paddingRight: 4,
   },
   filtrosContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: colors.border,
     paddingVertical: 8,
   },
   filtroScrollContent: {
@@ -560,15 +564,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EEF2F6",
+    backgroundColor: colors.backgroundElement,
   },
   filtroTexto: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#374151",
+    color: colors.textSecondary,
   },
   filtroButtonActivo: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
   },
   filtroTextoActivo: {
     color: "#FFFFFF",
@@ -587,7 +591,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    color: "#374151",
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -601,15 +605,15 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   emptyText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: colors.textSecondary,
     textAlign: "center",
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     shadowColor: "#000000",
@@ -632,14 +636,14 @@ const styles = StyleSheet.create({
   tipoTexto: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     flexShrink: 1,
     paddingRight: 4,
     includeFontPadding: true,
   },
   codigoTexto: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "600",
     marginTop: 3,
   },
@@ -670,21 +674,21 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
+    color: colors.textSecondary,
     flexShrink: 1,
     paddingRight: 4,
   },
   metaValue: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#111827",
+    color: colors.text,
     textAlign: "right",
     flexShrink: 0,
     paddingHorizontal: 4,
     includeFontPadding: true,
   },
   primaryButton: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -708,7 +712,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     alignItems: "center",
@@ -716,7 +720,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 14,
   },
   qrContainer: {
@@ -724,12 +728,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     marginBottom: 10,
   },
   helperText: {
     fontSize: 13,
-    color: "#374151",
+    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: 12,
     lineHeight: 18,
@@ -741,7 +745,7 @@ const styles = StyleSheet.create({
   fotoArregloTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 6,
   },
   fotoArregloImg: {
@@ -757,7 +761,7 @@ const styles = StyleSheet.create({
   timelineTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 10,
   },
   timelineRow: {
@@ -769,11 +773,11 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: colors.border,
     marginTop: 6,
   },
   timelineDotActive: {
-    backgroundColor: "#1F6FEB",
+    backgroundColor: colors.primaryBackground,
   },
   timelineTextWrap: {
     flex: 1,
@@ -781,18 +785,18 @@ const styles = StyleSheet.create({
   },
   timelineText: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.textSecondary,
     fontWeight: "600",
   },
   timelineComment: {
     fontSize: 12,
-    color: "#6B7280",
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   timelineLine: {
     width: 2,
     height: 14,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: colors.border,
     marginLeft: 4,
     marginVertical: 4,
   },

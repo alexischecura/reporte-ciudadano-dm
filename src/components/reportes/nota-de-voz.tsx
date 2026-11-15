@@ -134,7 +134,7 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
       <ThemedText style={styles.titulo}>Nota de voz (opcional)</ThemedText>
       {!audioUri && !grabando && (
         <Pressable
-          style={[styles.boton, { backgroundColor: colors.primary }]}
+          style={[styles.boton, { backgroundColor: colors.primaryBackground }]}
           onPress={() => void empezar()}
           disabled={procesando}
         >
@@ -150,7 +150,7 @@ export function NotaDeVoz({ audioUri, directorioBorrador, onCambiar }: Props) {
             style={[
               styles.boton,
               styles.botonStop,
-              { backgroundColor: colors.error },
+              { backgroundColor: colors.errorBackground },
             ]}
             onPress={() => void parar()}
           >

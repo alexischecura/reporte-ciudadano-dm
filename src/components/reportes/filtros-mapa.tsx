@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/use-theme";
+import type { ThemeColors } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,6 +31,8 @@ function Opcion({ nombre, seleccionada, onPress }: {
   seleccionada: boolean;
   onPress: () => void;
 }) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   return (
     <Pressable
       accessibilityRole="button"
@@ -46,6 +50,8 @@ export function FiltrosMapa({
   errorUbicacion, permisoBloqueado, cargando, sinResultados,
   cantidad, onTipo, onEstado, onAlternar, onCercania, onLimpiar,
 }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const cantidadFiltros = Number(!!tipoId) + Number(!!estado) + Number(cerca);
 
   return (
@@ -63,7 +69,7 @@ export function FiltrosMapa({
           onPress={onAlternar}
           style={[styles.chip, abiertos && styles.chipActivo]}
         >
-          <Ionicons name="options-outline" size={18} color={abiertos ? "#fff" : "#1F6FEB"} />
+          <Ionicons name="options-outline" size={18} color={abiertos ? "#fff" : colors.primary} />
           <Text style={[styles.texto, abiertos && styles.textoActivo]}>
             Filtros{cantidadFiltros ? ` (${cantidadFiltros})` : ""}
           </Text>
@@ -77,8 +83,8 @@ export function FiltrosMapa({
           onPress={onCercania}
           style={[styles.chip, cerca && styles.chipActivo]}
         >
-          {buscandoUbicacion ? <ActivityIndicator size="small" color="#1F6FEB" /> : (
-            <Ionicons name="locate-outline" size={18} color={cerca ? "#fff" : "#1F6FEB"} />
+          {buscandoUbicacion ? <ActivityIndicator size="small" color={colors.primary} /> : (
+            <Ionicons name="locate-outline" size={18} color={cerca ? "#fff" : colors.primary} />
           )}
           <Text style={[styles.texto, cerca && styles.textoActivo]}>
             {buscandoUbicacion ? "Buscando ubicación…" : "Cerca de mí · 1 km"}
@@ -119,17 +125,17 @@ export function FiltrosMapa({
   );
 }
 
-const styles = StyleSheet.create({
-  panel: { backgroundColor: "#FFFFFF", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: "#E8ECF0" },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  panel: { backgroundColor: colors.surface, padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   cabecera: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  titulo: { fontSize: 20, fontWeight: "700", color: "#152033" },
-  resumen: { fontSize: 14, color: "#60646C", marginTop: 3 },
-  etiqueta: { fontSize: 14, fontWeight: "700", color: "#253046" },
+  titulo: { fontSize: 20, fontWeight: "700", color: colors.text },
+  resumen: { fontSize: 14, color: colors.textSecondary, marginTop: 3 },
+  etiqueta: { fontSize: 14, fontWeight: "700", color: colors.text },
   fila: { gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#F0F3F7", borderWidth: 1, borderColor: "#E0E7EF" },
-  chipActivo: { backgroundColor: "#1F6FEB", borderColor: "#1F6FEB" },
-  texto: { color: "#1F6FEB", fontSize: 14, fontWeight: "600" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.backgroundElement, borderWidth: 1, borderColor: colors.border },
+  chipActivo: { backgroundColor: colors.primaryBackground, borderColor: colors.primary },
+  texto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   textoActivo: { color: "#FFFFFF" },
   accion: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
-  error: { color: "#991B1B", fontSize: 14, fontWeight: "600" },
+  error: { color: colors.error, fontSize: 14, fontWeight: "600" },
 });

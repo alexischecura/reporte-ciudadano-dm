@@ -87,7 +87,7 @@ export function ReportesCercanos({
                   accessibilityRole="button"
                   disabled={enviandoId !== null}
                   onPress={() => propio ? router.push("/seguimiento") : void sumarse(reporte)}
-                  style={[styles.boton, { backgroundColor: colores.primary, opacity: enviandoId ? 0.6 : 1 }]}
+                  style={[styles.boton, { backgroundColor: colores.primaryBackground, opacity: enviandoId ? 0.6 : 1 }]}
                 >
                   {enviandoId === reporte.id ? <ActivityIndicator color="#fff" /> : (
                     <ThemedText style={styles.botonTexto}>{propio ? "Es tu reporte · Ver seguimiento" : "Es el mismo, sumarme"}</ThemedText>
